@@ -97,7 +97,7 @@ def build_llm(
     if provider in ("remote", "openai"):
         return RemoteProvider("openai", api_key or "", model or "gpt-4o")
     if provider == "anthropic":
-        return RemoteProvider("anthropic", api_key or "", model or "claude-3-5-sonnet-latest")
+        return RemoteProvider("anthropic", api_key or "", model or "claude-haiku-4-5")
     return OllamaProvider(settings.ollama_url, model or settings.ollama_model)
 
 
@@ -321,5 +321,5 @@ def build_tool_llm(
     if provider in ("remote", "openai"):
         return OpenAIToolProvider(api_key or "", model or "gpt-4o")
     if provider == "anthropic":
-        return AnthropicToolProvider(api_key or "", model or "claude-3-5-sonnet-latest")
+        return AnthropicToolProvider(api_key or "", model or "claude-haiku-4-5")
     return OllamaToolProvider(settings.ollama_url, model or settings.ollama_model)
