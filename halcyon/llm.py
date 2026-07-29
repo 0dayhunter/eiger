@@ -93,12 +93,15 @@ def build_llm(
     model: str | None = None,
     api_key: str | None = None,
 ) -> LLM:
+    from halcyon.provider_litellm import LiteLLMChat, to_litellm_model
+
     provider = provider or settings.default_provider
-    if provider in ("remote", "openai"):
-        return RemoteProvider("openai", api_key or "", model or "gpt-4o")
-    if provider == "anthropic":
-        return RemoteProvider("anthropic", api_key or "", model or "claude-haiku-4-5")
-    return OllamaProvider(settings.ollama_url, model or settings.ollama_model)
+    model_str = to_litellm_model(provider, model, settings.ollama_model)
+    if model_str.startswith("ollama/"):
+        return LiteLLMChat(model_str, api_base=settings.ollama_url)
+    if not api_key:
+        raise ValueError(f"provider {provider!r} requires an api_key")
+    return LiteLLMChat(model_str, api_key=api_key)
 
 
 @dataclass
@@ -317,9 +320,12 @@ def build_tool_llm(
     model: str | None = None,
     api_key: str | None = None,
 ) -> ToolLLM:
+    from halcyon.provider_litellm import LiteLLMTool, to_litellm_model
+
     provider = provider or settings.default_provider
-    if provider in ("remote", "openai"):
-        return OpenAIToolProvider(api_key or "", model or "gpt-4o")
-    if provider == "anthropic":
-        return AnthropicToolProvider(api_key or "", model or "claude-haiku-4-5")
-    return OllamaToolProvider(settings.ollama_url, model or settings.ollama_model)
+    model_str = to_litellm_model(provider, model, settings.ollama_model)
+    if model_str.startswith("ollama/"):
+        return LiteLLMTool(model_str, api_base=settings.ollama_url)
+    if not api_key:
+        raise ValueError(f"provider {provider!r} requires an api_key")
+    return LiteLLMTool(model_str, api_key=api_key)
