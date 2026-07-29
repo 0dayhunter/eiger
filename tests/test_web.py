@@ -99,11 +99,39 @@ def test_root_serves_reach_test_page():
     assert "reach-test" in r.text.lower()
 
 
-def test_chat_page_has_model_selector():
+def test_chat_page_has_model_modal():
+    # Replaces the old local/remote selector assertion: the config UI is now a
+    # five-provider modal, not a two-option inline select.
     client, _ = make_client({"HALCYON_MODE": "vulnerable"}, "hi")
-    r = client.get("/chat")
-    assert r.status_code == 200
-    assert "local" in r.text.lower() and "remote" in r.text.lower()
+    text = client.get("/chat").text
+    assert 'id="cfg-provider"' in text
+    low = text.lower()
+    for provider in ("local", "anthropic", "openai", "gemini", "xai"):
+        assert provider in low, f"provider {provider} missing from model modal"
+    assert "remote" not in low  # the stale control is gone
+
+
+def test_chat_page_renders_all_layer_tabs_and_panels():
+    client, _ = make_client({"HALCYON_MODE": "vulnerable"}, "hi")
+    text = client.get("/chat", params={"session": "p1"}).text
+    # six layer tabs + panels
+    for layer in ("L0", "L1", "L2", "L3", "L4", "L5"):
+        assert f'data-tab="{layer}"' in text, f"missing tab {layer}"
+        assert f'data-layer="{layer}"' in text, f"missing panel {layer}"
+    # every panel's key control ids are present
+    for el in (
+        'id="msg"', 'id="chat-newconv"', 'id="setname"',      # L0
+        'id="kbsubmit"', 'id="askbtn"',                        # L1
+        'id="m4hash"', 'id="m4pkg"', 'id="m5send"',            # L2
+        'id="mcpsend"',                                        # L3
+        'id="dsend"', 'id="dtext"',                            # L4
+        'id="gsend"',                                          # L5
+        'id="sidebar"', 'id="model-modal"',                   # chrome
+    ):
+        assert el in text, f"missing element {el}"
+    # attack-board link + MCP inspector hint
+    assert 'href="/board"' in text
+    assert "modelcontextprotocol/inspector" in text
 
 
 def test_chat_page_has_rag_panel():

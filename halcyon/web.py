@@ -261,6 +261,7 @@ def create_app(
             output_encoding="on" if eff.sec_output_encoding else "off",
             display_name_html=guards.encode_output(name, eff),
             nonce=request.state.csp_nonce,
+            mode=settings.mode,
         )
 
     from fastapi.responses import Response
