@@ -16,8 +16,9 @@ from halcyon import (
     agent, bank_fixtures, capstone, dispute_pipeline, guards, halo, kb_fixtures, m4_answers, rag,
 )
 from halcyon.bank import Bank
-from halcyon.config import Settings
+from halcyon.config import Settings, effective_settings
 from halcyon.kb import KnowledgeBase
+from halcyon.session_state import InMemorySessionState, SessionState
 from halcyon.llm import LLM, OllamaProvider, ToolLLM
 from halcyon.store import Store
 from halcyon.validators import m1, m2, m3, m4, m5, m6, m7, m8
@@ -101,8 +102,10 @@ def create_app(
     bank: Bank,
     tool_llm_factory: ToolLLMFactory,
     mcp_host_factory: MCPHostFactory,
+    session_state: SessionState | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Halcyon")
+    session: SessionState = session_state or InMemorySessionState()
 
     from starlette.requests import Request
 
@@ -172,7 +175,12 @@ def create_app(
     @app.post("/api/chat")
     def chat(body: ChatIn) -> dict:
         llm = llm_factory(body.provider, body.model, body.api_key)
-        reply = halo.handle_turn(store, llm, settings, body.session_id, body.message)
+        eff = effective_settings(settings, session, body.session_id, "m1")
+        history = session.get_history(body.session_id, "chat")
+        reply = halo.handle_turn(
+            store, llm, eff, body.session_id, body.message, history=history
+        )
+        session.append_turn(body.session_id, "chat", body.message, reply)
         return {"reply": reply}
 
     @app.get("/validate/{module}")
@@ -185,6 +193,8 @@ def create_app(
     @app.post("/reset/{module}")
     def reset(module: str, body: ResetIn) -> dict:
         store.write_reset_marker(body.session_id, module)
+        if module in ("m1", "m2"):
+            session.clear_history(body.session_id, "chat")
         if module == "m3":
             kb.clear()
             kb.seed(kb_fixtures.SEED)
