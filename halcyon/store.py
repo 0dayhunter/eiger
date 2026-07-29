@@ -26,6 +26,7 @@ class Store(Protocol):
     ) -> None: ...
     def set_profile(self, session_id: str, display_name: str) -> None: ...
     def get_profile(self, session_id: str) -> str: ...
+    def list_sessions(self) -> list[str]: ...
     def ping(self) -> bool: ...
 
 
@@ -67,6 +68,9 @@ class InMemoryStore:
 
     def get_profile(self, session_id: str) -> str:
         return self._profiles.get(session_id, "")
+
+    def list_sessions(self) -> list[str]:
+        return sorted({e.session_id for e in self._events})
 
     def ping(self) -> bool:
         return True

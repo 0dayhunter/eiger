@@ -324,6 +324,10 @@ def create_app(
     def capstone_view(session: str) -> dict:
         return capstone.residual_risk(store, session)
 
+    @app.get("/board")
+    def board_view() -> dict:
+        return capstone.board(store)
+
     @app.post("/api/level")
     def set_level(body: LevelIn) -> dict:
         if body.level not in ("L1", "L2"):

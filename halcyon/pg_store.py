@@ -85,6 +85,13 @@ class PostgresStore:
             ).fetchone()
         return row[0] if row else ""
 
+    def list_sessions(self) -> list[str]:
+        with psycopg.connect(self._dsn) as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT session_id FROM audit_log ORDER BY session_id"
+            ).fetchall()
+        return [r[0] for r in rows]
+
     def ping(self) -> bool:
         try:
             with psycopg.connect(self._dsn, connect_timeout=3) as conn:

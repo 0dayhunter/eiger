@@ -36,3 +36,15 @@ def residual_risk(store: Store, session_id: str) -> dict:
     exploited_count = sum(1 for m in modules if m["exploited"])
     return {"session": session_id, "modules": modules,
             "exploited_count": exploited_count, "total": len(modules)}
+
+
+def board(store: Store) -> dict:
+    """Class-wide captured-attacks board: every session that landed at least one core
+    exploit, most-cracked first. Hosted-only (needs the shared audit log)."""
+    sessions = [
+        rr
+        for sid in store.list_sessions()
+        if (rr := residual_risk(store, sid))["exploited_count"] > 0
+    ]
+    sessions.sort(key=lambda r: r["exploited_count"], reverse=True)
+    return {"sessions": sessions, "total": len(sessions)}
