@@ -11,12 +11,17 @@ class SessionState(Protocol):
     def get_level(self, session_id: str, module: str) -> str | None: ...
     def set_level(self, session_id: str, module: str, level: str) -> None: ...
     def get_levels(self, session_id: str) -> dict[str, str]: ...
+    def get_model_cfg(self, session_id: str) -> dict[str, str]: ...
+    def set_model_cfg(
+        self, session_id: str, provider: str, model: str, api_key: str
+    ) -> None: ...
 
 
 @dataclass
 class InMemorySessionState:
     _history: dict[tuple[str, str], list[dict]] = field(default_factory=dict)
     _levels: dict[tuple[str, str], str] = field(default_factory=dict)
+    _model_cfg: dict[str, dict[str, str]] = field(default_factory=dict)
 
     def get_history(self, session_id: str, surface: str) -> list[dict]:
         return [dict(m) for m in self._history.get((session_id, surface), [])]
@@ -39,3 +44,13 @@ class InMemorySessionState:
 
     def get_levels(self, session_id: str) -> dict[str, str]:
         return {m: lvl for (s, m), lvl in self._levels.items() if s == session_id}
+
+    def get_model_cfg(self, session_id: str) -> dict[str, str]:
+        return dict(self._model_cfg.get(session_id, {}))
+
+    def set_model_cfg(
+        self, session_id: str, provider: str, model: str, api_key: str
+    ) -> None:
+        self._model_cfg[session_id] = {
+            "provider": provider, "model": model, "api_key": api_key
+        }

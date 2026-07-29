@@ -88,6 +88,13 @@ class LevelIn(BaseModel):
     level: str
 
 
+class ConfigIn(BaseModel):
+    session_id: str
+    provider: str
+    model: str | None = None
+    api_key: str | None = None
+
+
 _VALIDATORS = {
     "m1": m1.validate,
     "m2": m2.validate,
@@ -112,6 +119,17 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(title="Halcyon")
     sess: SessionState = session_state or InMemorySessionState()
+
+    def _mcfg(
+        session_id: str, p: str | None = None, m: str | None = None, k: str | None = None
+    ) -> tuple[str | None, str | None, str | None]:
+        """Resolve model config: explicit request values win, else the session's saved config."""
+        cfg = sess.get_model_cfg(session_id)
+        return (
+            p or cfg.get("provider") or None,
+            m or cfg.get("model") or None,
+            k or cfg.get("api_key") or None,
+        )
 
     from starlette.requests import Request
 
@@ -180,7 +198,7 @@ def create_app(
 
     @app.post("/api/chat")
     def chat(body: ChatIn) -> dict:
-        llm = llm_factory(body.provider, body.model, body.api_key)
+        llm = llm_factory(*_mcfg(body.session_id, body.provider, body.model, body.api_key))
         eff = effective_settings(settings, sess, body.session_id, "m1")
         history = sess.get_history(body.session_id, "chat")
         reply = halo.handle_turn(
@@ -224,7 +242,7 @@ def create_app(
     def ask(body: AskIn) -> dict:
         eff = effective_settings(settings, sess, body.session_id, "m3")
         reply, _ = rag.answer(
-            kb, llm_factory(None, None, None), store, eff, body.session_id, body.query
+            kb, llm_factory(*_mcfg(body.session_id)), store, eff, body.session_id, body.query
         )
         return {"reply": reply}
 
@@ -265,14 +283,14 @@ def create_app(
 
     @app.post("/api/agent")
     def agent_endpoint(body: AgentIn) -> dict:
-        tool_llm = tool_llm_factory(body.provider, body.model, body.api_key)
+        tool_llm = tool_llm_factory(*_mcfg(body.session_id, body.provider, body.model, body.api_key))
         eff = effective_settings(settings, sess, body.session_id, "m5")
         reply, calls = agent.run(tool_llm, body.session_id, body.message, bank, store, eff)
         return {"reply": reply, "tool_calls": [{"name": n, "args": a} for n, a, _ in calls]}
 
     @app.post("/api/mcp-agent")
     async def mcp_agent(body: AgentIn) -> dict:
-        tool_llm = tool_llm_factory(body.provider, body.model, body.api_key)
+        tool_llm = tool_llm_factory(*_mcfg(body.session_id, body.provider, body.model, body.api_key))
         # NOTE (S9.2): M6 guards live inside the MCPHost, built by mcp_host_factory with the
         # base settings. Per-session L1/L2 for M6 lands with the per-participant MCP isolation
         # work (spec S9 §12); the factory will take effective settings then.
@@ -284,7 +302,7 @@ def create_app(
 
     @app.post("/api/dispute")
     def dispute_endpoint(body: DisputeIn) -> dict:
-        tool_llm = tool_llm_factory(body.provider, body.model, body.api_key)
+        tool_llm = tool_llm_factory(*_mcfg(body.session_id, body.provider, body.model, body.api_key))
         eff = effective_settings(settings, sess, body.session_id, "m7")
         decision, transcript = dispute_pipeline.run_dispute(
             tool_llm, body.session_id,
@@ -297,7 +315,7 @@ def create_app(
 
     @app.post("/api/guarded-chat")
     def guarded_chat(body: ChatIn) -> dict:
-        llm = llm_factory(body.provider, body.model, body.api_key)
+        llm = llm_factory(*_mcfg(body.session_id, body.provider, body.model, body.api_key))
         eff = effective_settings(settings, sess, body.session_id, "m8")
         reply = halo.guarded_turn(store, llm, eff, body.session_id, body.message)
         return {"reply": reply}
@@ -318,6 +336,19 @@ def create_app(
     @app.get("/api/level")
     def get_levels(session: str) -> dict:
         return sess.get_levels(session)
+
+    @app.post("/api/config")
+    def set_config(body: ConfigIn) -> dict:
+        sess.set_model_cfg(
+            body.session_id, body.provider, body.model or "", body.api_key or ""
+        )
+        return {"status": "ok", "provider": body.provider, "model": body.model or ""}
+
+    @app.get("/api/config")
+    def get_config(session: str) -> dict:
+        cfg = sess.get_model_cfg(session)
+        # never return the api_key
+        return {"provider": cfg.get("provider", ""), "model": cfg.get("model", "")}
 
     @app.post("/submit/m4")
     def submit_m4(body: SubmitIn) -> dict:
