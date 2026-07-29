@@ -10,6 +10,7 @@ class SessionState(Protocol):
     def clear_history(self, session_id: str, surface: str) -> None: ...
     def get_level(self, session_id: str, module: str) -> str | None: ...
     def set_level(self, session_id: str, module: str, level: str) -> None: ...
+    def get_levels(self, session_id: str) -> dict[str, str]: ...
 
 
 @dataclass
@@ -35,3 +36,6 @@ class InMemorySessionState:
 
     def set_level(self, session_id: str, module: str, level: str) -> None:
         self._levels[(session_id, module)] = level
+
+    def get_levels(self, session_id: str) -> dict[str, str]:
+        return {m: lvl for (s, m), lvl in self._levels.items() if s == session_id}

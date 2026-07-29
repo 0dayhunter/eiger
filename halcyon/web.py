@@ -16,7 +16,7 @@ from halcyon import (
     agent, bank_fixtures, capstone, dispute_pipeline, guards, halo, kb_fixtures, m4_answers, rag,
 )
 from halcyon.bank import Bank
-from halcyon.config import Settings, effective_settings
+from halcyon.config import MODULE_FLAGS, Settings, effective_settings
 from halcyon.kb import KnowledgeBase
 from halcyon.session_state import InMemorySessionState, SessionState
 from halcyon.llm import LLM, OllamaProvider, ToolLLM
@@ -82,6 +82,12 @@ class DisputeIn(BaseModel):
     api_key: str | None = None
 
 
+class LevelIn(BaseModel):
+    session_id: str
+    module: str
+    level: str
+
+
 _VALIDATORS = {
     "m1": m1.validate,
     "m2": m2.validate,
@@ -105,7 +111,7 @@ def create_app(
     session_state: SessionState | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Halcyon")
-    session: SessionState = session_state or InMemorySessionState()
+    sess: SessionState = session_state or InMemorySessionState()
 
     from starlette.requests import Request
 
@@ -175,12 +181,12 @@ def create_app(
     @app.post("/api/chat")
     def chat(body: ChatIn) -> dict:
         llm = llm_factory(body.provider, body.model, body.api_key)
-        eff = effective_settings(settings, session, body.session_id, "m1")
-        history = session.get_history(body.session_id, "chat")
+        eff = effective_settings(settings, sess, body.session_id, "m1")
+        history = sess.get_history(body.session_id, "chat")
         reply = halo.handle_turn(
             store, llm, eff, body.session_id, body.message, history=history
         )
-        session.append_turn(body.session_id, "chat", body.message, reply)
+        sess.append_turn(body.session_id, "chat", body.message, reply)
         return {"reply": reply}
 
     @app.get("/validate/{module}")
@@ -194,7 +200,7 @@ def create_app(
     def reset(module: str, body: ResetIn) -> dict:
         store.write_reset_marker(body.session_id, module)
         if module in ("m1", "m2"):
-            session.clear_history(body.session_id, "chat")
+            sess.clear_history(body.session_id, "chat")
         if module == "m3":
             kb.clear()
             kb.seed(kb_fixtures.SEED)
@@ -291,6 +297,19 @@ def create_app(
     @app.get("/capstone")
     def capstone_view(session: str) -> dict:
         return capstone.residual_risk(store, session)
+
+    @app.post("/api/level")
+    def set_level(body: LevelIn) -> dict:
+        if body.level not in ("L1", "L2"):
+            return {"error": "level must be L1 or L2"}
+        if body.module not in MODULE_FLAGS:
+            return {"error": f"unknown module {body.module}"}
+        sess.set_level(body.session_id, body.module, body.level)
+        return {"status": "ok", "module": body.module, "level": body.level}
+
+    @app.get("/api/level")
+    def get_levels(session: str) -> dict:
+        return sess.get_levels(session)
 
     @app.post("/submit/m4")
     def submit_m4(body: SubmitIn) -> dict:
