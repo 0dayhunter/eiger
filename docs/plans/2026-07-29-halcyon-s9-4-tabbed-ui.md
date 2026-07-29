@@ -1,3 +1,135 @@
+# Halcyon S9.4 — Tabbed UI Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Rebuild `halcyon/templates/chat.html` into a six-layer tabbed lab UI with a per-tab guardrail sidebar, a five-provider model-config modal, browser panels for M6/M7/M8, an attack-board link, and a per-surface new-conversation reset — all binding to existing routes.
+
+**Architecture:** Pure frontend slice. One self-contained Jinja template (HTML + inline `<style>` + one nonce'd `<script>`) served by the unchanged `/chat` handler. Tab switching and sidebar rendering are client-side; every panel calls an endpoint that already exists in `halcyon/web.py`. The only server touch is passing `settings.mode` into the template render so the sidebar can seed default levels.
+
+**Tech Stack:** FastAPI + Jinja2 (server render), vanilla JS (no build step, no framework, no external scripts — CSP forbids them), pytest + `fastapi.testclient.TestClient` for render-contract tests.
+
+## Global Constraints
+
+- **No endpoint, guard, validator, or audit-log change.** Only `halcyon/templates/chat.html` is rebuilt; `halcyon/web.py` gets a one-line render-kwarg addition (`mode=settings.mode`). Nothing else server-side changes.
+- **Deterministic test suite must stay green.** Run `pytest` (Stub LLM/ToolLLM); no live model calls in tests.
+- **Safe rendering discipline:** all model/user output via `textContent`. The ONLY `|safe`/raw-HTML path is the M2 greeting sink `{{ display_name_html | safe }}` inside `<span id="dn">`. No `innerHTML` anywhere in the JS.
+- **Preserve these exact markers** (pinned by existing tests): `<div id="cfg" data-encoding="{{ output_encoding }}">`, `<span id="dn">{{ display_name_html | safe }}</span>`, `<script nonce="{{ nonce }}">`, element ids `kbsubmit` and `askbtn`.
+- **Provider values** (exact strings the model factory accepts): `local`, `anthropic`, `openai`, `gemini`, `xai`.
+- **Model-field seed defaults** (editable): local `llama3.1:8b` · anthropic `claude-haiku-4-5` · openai `gpt-5.6-luna` · gemini `gemini-3.5-flash-lite` · xai `grok-4.3`.
+- **CSP:** the single inline `<script>` must carry `nonce="{{ nonce }}"`. No external `.js`/`.css`, no inline event-handler attributes (`onclick="…"` in HTML) — wire everything from the nonce'd script.
+- **Session id:** `?session=` query param, default `"dev"`.
+
+---
+
+## Layer → module → endpoint reference
+
+| Tab | Layer | Module(s) | Endpoints | Guardrail toggle(s) |
+|-----|-------|-----------|-----------|---------------------|
+| L0 | Chatbot | M1, M2 | `/api/chat`, `/api/profile`, `/reset/m1` | M1, M2 |
+| L1 | RAG | M3 | `/api/kb`, `/api/ask` | M3 |
+| L2 | Agent | M4, M5 | `/submit/m4`, `/api/agent`, `/reset/m5` | M5 only (M4 has no runtime guard) |
+| L3 | MCP | M6 | `/api/mcp-agent` | M6 (disabled — process-wide this release) |
+| L4 | Multi-agent | M7 | `/api/dispute` | M7 |
+| L5 | Production | M8 | `/api/guarded-chat` | M8 |
+
+Endpoint request/response contracts (from `halcyon/web.py`, all unchanged):
+- `POST /api/chat {session_id, message}` → `{reply}`
+- `POST /api/profile {session_id, display_name}` → `{status}`
+- `POST /api/kb {session_id, text}` → `{status}`
+- `POST /api/ask {session_id, query}` → `{reply}`
+- `POST /submit/m4 {session_id, finding_type, value}` → `{correct}` (finding_type ∈ `malicious_artifact`, `vulnerable_dependency`)
+- `POST /api/agent {session_id, message}` → `{reply, tool_calls:[{name,args}]}`
+- `POST /api/mcp-agent {session_id, message}` → `{reply, tool_calls:[{name,args}]}`
+- `POST /api/dispute {session_id, dispute_text, account, amount}` → `{decision, transcript:[{from,content}]}`
+- `POST /api/guarded-chat {session_id, message}` → `{reply}`
+- `POST /reset/{module} {session_id}` → `{status, module}`
+- `POST /api/level {session_id, module, level}` → `{status, module, level}` (level ∈ `L1`,`L2`)
+- `GET /api/level?session=` → `{module: level, …}` (only explicit overrides; may be `{}`)
+- `POST /api/config {session_id, provider, model, api_key}` → `{status, provider, model}`
+- `GET /api/config?session=` → `{provider, model}` (never the key)
+
+---
+
+### Task 1: Rebuild the tabbed UI (render-contract test + template)
+
+Test and template land together — the template plus its render-contract test are one reviewable unit (a reviewer can't meaningfully approve half a Jinja template). This is a full red→green→commit cycle.
+
+**Files:**
+- Modify: `halcyon/web.py` (one line — the `/chat` render kwargs, ~line 260)
+- Rewrite: `halcyon/templates/chat.html` (full replacement)
+- Modify: `tests/test_web.py` (add render-contract test; update the stale model-selector test)
+
+**Interfaces:**
+- Consumes (existing, unchanged): the `make_client(env, reply)` helper at the top of `tests/test_web.py` returning `(TestClient, store)`; all endpoints in the reference table above.
+- Produces: a `/chat` HTML document containing the markers asserted below. No new Python symbols.
+
+- [ ] **Step 1: Write the failing render-contract tests**
+
+Add these two functions to `tests/test_web.py`, and REPLACE the existing `test_chat_page_has_model_selector` (it asserts the removed `"remote"` control):
+
+```python
+def test_chat_page_has_model_modal():
+    # Replaces the old local/remote selector assertion: the config UI is now a
+    # five-provider modal, not a two-option inline select.
+    client, _ = make_client({"HALCYON_MODE": "vulnerable"}, "hi")
+    text = client.get("/chat").text
+    assert 'id="cfg-provider"' in text
+    low = text.lower()
+    for provider in ("local", "anthropic", "openai", "gemini", "xai"):
+        assert provider in low, f"provider {provider} missing from model modal"
+    assert "remote" not in low  # the stale control is gone
+
+
+def test_chat_page_renders_all_layer_tabs_and_panels():
+    client, _ = make_client({"HALCYON_MODE": "vulnerable"}, "hi")
+    text = client.get("/chat", params={"session": "p1"}).text
+    # six layer tabs + panels
+    for layer in ("L0", "L1", "L2", "L3", "L4", "L5"):
+        assert f'data-tab="{layer}"' in text, f"missing tab {layer}"
+        assert f'data-layer="{layer}"' in text, f"missing panel {layer}"
+    # every panel's key control ids are present
+    for el in (
+        'id="msg"', 'id="chat-newconv"', 'id="setname"',      # L0
+        'id="kbsubmit"', 'id="askbtn"',                        # L1
+        'id="m4hash"', 'id="m4pkg"', 'id="m5send"',            # L2
+        'id="mcpsend"',                                        # L3
+        'id="dsend"', 'id="dtext"',                            # L4
+        'id="gsend"',                                          # L5
+        'id="sidebar"', 'id="model-modal"',                   # chrome
+    ):
+        assert el in text, f"missing element {el}"
+    # attack-board link + MCP inspector hint
+    assert 'href="/board"' in text
+    assert "modelcontextprotocol/inspector" in text
+```
+
+- [ ] **Step 2: Run the new/updated tests to verify they fail**
+
+Run: `cd /Users/kkmookhey/Projects/eiger && python -m pytest tests/test_web.py::test_chat_page_has_model_modal tests/test_web.py::test_chat_page_renders_all_layer_tabs_and_panels -v`
+Expected: FAIL — the current template has no `data-tab`, `cfg-provider`, `mcpsend`, `dsend`, `/board` link, or inspector hint.
+
+- [ ] **Step 3: Pass `mode` into the `/chat` render**
+
+In `halcyon/web.py`, the `chat_page` handler (~line 256-264) currently renders with `output_encoding`, `display_name_html`, `nonce`. Add `mode=settings.mode`:
+
+```python
+    @app.get("/chat", response_class=HTMLResponse)
+    def chat_page(request: Request, session: str = "dev") -> str:
+        name = store.get_profile(session)
+        eff = effective_settings(settings, sess, session, "m2")
+        return templates.get_template("chat.html").render(
+            output_encoding="on" if eff.sec_output_encoding else "off",
+            display_name_html=guards.encode_output(name, eff),
+            nonce=request.state.csp_nonce,
+            mode=settings.mode,
+        )
+```
+
+- [ ] **Step 4: Rewrite `halcyon/templates/chat.html`**
+
+Replace the entire file with:
+
+```html
 <!doctype html>
 <title>Halo — Halcyon Lab</title>
 <style>
@@ -100,8 +232,7 @@
       <form id="chatform" class="row">
         <input id="msg" type="text" placeholder="Message Halo…" autocomplete="off" autofocus />
         <button id="send" type="submit">Send</button>
-        <button id="chat-newconv" type="button"
-          title="Clears the chat and resets your M1 progress so a fresh crescendo attempt starts clean.">New attempt (resets M1)</button>
+        <button id="chat-newconv" type="button">New conversation</button>
       </form>
     </section>
 
@@ -471,3 +602,93 @@
     activate("L0");
   })();
 </script>
+```
+
+- [ ] **Step 5: Run the full suite to verify green**
+
+Run: `cd /Users/kkmookhey/Projects/eiger && python -m pytest tests/test_web.py -v && python -m pytest`
+Expected: the two new tests PASS; the preserved tests still PASS —
+`test_chat_page_has_rag_panel` (kbsubmit/askbtn), `test_chat_page_exposes_encoding_flag`
+(`data-encoding` on/off), `test_secure_csp_nonce_matches_app_script` (nonce on the script),
+`test_display_name_rendered_raw_when_vulnerable_escaped_when_secure` (M2 sink), `test_csp_header_only_in_secure`.
+Full suite green.
+
+- [ ] **Step 6: Lint/type gates**
+
+Run: `cd /Users/kkmookhey/Projects/eiger && ruff check halcyon tests && mypy halcyon`
+Expected: clean (the only Python change is one render kwarg).
+
+- [ ] **Step 7: Commit**
+
+```bash
+cd /Users/kkmookhey/Projects/eiger
+git add halcyon/templates/chat.html halcyon/web.py tests/test_web.py
+git commit -m "feat(s9.4): tabbed layer UI with guardrail sidebar + model modal
+
+Rebuild chat.html into six layer tabs (L0-L5) with per-tab L1/L2
+guardrail toggles (/api/level), a five-provider model-config modal
+(/api/config), browser panels for M6/M7/M8, an attack-board link, and a
+per-surface new-conversation reset. Pass settings.mode into the render so
+the sidebar seeds default levels. Preserves the M2 XSS sink, CSP nonce,
+and data-encoding flag. Frontend-only; no endpoint/guard/validator change.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
+### Task 2: Manual verification sweep on the running stack
+
+No code. Drive the real UI to confirm behavior the render-smoke test can't (interaction, level-flip taking effect, key non-echo). This is the design doc's §8 manual sweep.
+
+**Files:** none.
+
+- [ ] **Step 1: Bring up the stack**
+
+Run: `cd /Users/kkmookhey/Projects/eiger && docker compose -p halcyon up -d` (or confirm it's already up — web on `:8010`). Then open `http://localhost:8010/chat?session=verify1`.
+
+- [ ] **Step 2: Tab + sidebar**
+
+Click each of L0–L5. Confirm: the panel swaps; the sidebar shows only that layer's module toggle(s); L2 shows M5 only (no M4 toggle); L3's M6 toggle is greyed out with the process-wide tooltip on hover.
+
+- [ ] **Step 3: L0 multi-turn + new conversation**
+
+On L0, send 3 messages; confirm they accumulate in the log (multi-turn history is server-side). Click **New conversation**; confirm the log clears. Set a display name of `<b>hi</b>` and confirm the greeting renders it raw (vulnerable mode — the M2 sink) after reload.
+
+- [ ] **Step 4: Level flip takes effect**
+
+On L1, flip **M3** to L2 (toggle turns filled/blue). Submit a poisoning KB note and ask a question; confirm behavior reflects the guard being on (provenance/quarantine). Flip back to L1; confirm the next request is vulnerable again — no restart.
+
+- [ ] **Step 5: Model modal round-trip**
+
+Click the header model button. Switch provider to Anthropic; confirm the model field re-seeds to `claude-haiku-4-5`. Enter any key, Save. Confirm: the header label updates to `anthropic · claude-haiku-4-5`; reopening the modal shows the key field **empty** (never echoed); `GET /api/config?session=verify1` in the network tab returns provider+model with **no** api_key.
+
+- [ ] **Step 6: New panels reach their endpoints**
+
+L3: ask the MCP agent, confirm a reply + any `tool:` lines render. L4: file a dispute (account `acct-me`, amount `100`, some text), confirm decision + signed transcript lines. L5: send a guarded-chat message, confirm a reply. Expand the L3 Inspector hint and confirm the `npx` command shows.
+
+- [ ] **Step 7: Attack board link**
+
+Click **Attack board** in the header; confirm `/board` opens in a new tab and renders the JSON/board view.
+
+- [ ] **Step 8: Record the result**
+
+Note pass/fail per step. If any interaction fails, fix it in `chat.html` (re-run Task 1's tests to keep the render contract green) and re-verify. No commit needed unless a fix was made.
+
+---
+
+## Self-Review
+
+**Spec coverage** (against `2026-07-29-halcyon-s9-4-tabbed-ui-design.md`):
+- §3 layout (header/tabs/sidebar/modal) → Task 1 template. ✓
+- §3 per-tab sidebar, M4 no-toggle, M6 disabled → `TAB_MODULES` + disabled branch. ✓
+- §4 all six panels over existing endpoints → template + JS handlers. ✓
+- §5 model modal, 5 providers, editable seed, key-never-returned → modal + save handler (clears key, label from response). ✓
+- §6 safe rendering (textContent everywhere, sole `|safe` sink) → all outputs via `textContent`/`line`/`renderAgent`; sink preserved. ✓
+- §7 bootstrap (session, GET /api/level, GET /api/config, default L0) → bootstrap IIFE. ✓
+- §8 testing (render-smoke + manual) → Task 1 tests + Task 2 sweep. ✓
+- Extras: board link, new-conversation, Inspector hint → all present + asserted. ✓
+
+**Placeholder scan:** no TBD/TODO; every step has concrete code or an exact command. ✓
+
+**Type/name consistency:** element ids in the template match every `getElementById`/assertion (`msg`, `chat-newconv`, `setname`, `kbsubmit`, `askbtn`, `m4hash`/`m4hashbtn`/`m4pkg`/`m4pkgbtn`, `m5reset`/`m5msg`/`m5send`, `mcpmsg`/`mcpsend`, `dtext`/`dacct`/`damt`/`dsend`, `gmsg`/`gsend`, `sidebar`, `model-modal`, `cfg-provider`/`cfg-model`/`cfg-key`/`cfg-save`/`cfg-cancel`, `model-btn`/`model-label`). Provider values (`local`/`anthropic`/`openai`/`gemini`/`xai`) match `to_litellm_model`. `data-tab`/`data-layer` values `L0`–`L5` are consistent between HTML and the `activate`/assertion loops. ✓
