@@ -1,5 +1,8 @@
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from typing import Any
+
+from halcyon.session_state import SessionState
 
 _TRUE = {"1", "true", "on", "yes"}
 
@@ -54,3 +57,31 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         database_url=env.get("DATABASE_URL", ""),
         default_provider=env.get("DEFAULT_PROVIDER", "local"),
     )
+
+
+MODULE_FLAGS: dict[str, tuple[str, ...]] = {
+    "m1": ("sec_system_prompt_hardening", "sec_input_filter"),
+    "m2": ("sec_output_encoding", "sec_system_prompt_hardening"),
+    "m3": ("sec_rag_provenance",),
+    "m5": ("sec_tool_scope_enforcement",),
+    "m6": ("sec_mcp_desc_pinning", "sec_mcp_token_scoping"),
+    "m7": ("sec_inter_agent_auth",),
+    "m8": ("sec_guardrails",),
+}
+
+
+def effective_settings(
+    base: Settings, session_state: "SessionState", session_id: str, module: str
+) -> Settings:
+    """Overlay a session's per-module L1/L2 level onto the base Settings.
+
+    Returns base unchanged when the session has no override for `module` (or the
+    module has no runtime guard). L2 forces that module's flags on; L1 forces them off.
+    """
+    level = session_state.get_level(session_id, module)
+    flags = MODULE_FLAGS.get(module)
+    if level is None or not flags:
+        return base
+    value = level == "L2"
+    changes: dict[str, Any] = {name: value for name in flags}
+    return replace(base, **changes)
