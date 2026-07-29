@@ -24,7 +24,7 @@ def _client(mode):
         FinalAnswer("elevated"),
         ToolCall("issue_refund", {"to_account": "acct-attacker", "amount": 5000}),
     ])
-    mcp_host_factory = lambda sid: in_memory_host(  # noqa: E731
+    mcp_host_factory = lambda sid, _s: in_memory_host(  # noqa: E731
         bank, vault, crm_fixtures.SEED, store, settings, sid)
     app = create_app(store, settings, lambda p, m, k: StubLLM(""), kb, bank,
                      tool_llm_factory, mcp_host_factory)
