@@ -222,8 +222,9 @@ def create_app(
 
     @app.post("/api/ask")
     def ask(body: AskIn) -> dict:
+        eff = effective_settings(settings, sess, body.session_id, "m3")
         reply, _ = rag.answer(
-            kb, llm_factory(None, None, None), store, settings, body.session_id, body.query
+            kb, llm_factory(None, None, None), store, eff, body.session_id, body.query
         )
         return {"reply": reply}
 
@@ -237,9 +238,10 @@ def create_app(
     @app.get("/chat", response_class=HTMLResponse)
     def chat_page(request: Request, session: str = "dev") -> str:
         name = store.get_profile(session)
+        eff = effective_settings(settings, sess, session, "m2")
         return templates.get_template("chat.html").render(
-            output_encoding="on" if settings.sec_output_encoding else "off",
-            display_name_html=guards.encode_output(name, settings),
+            output_encoding="on" if eff.sec_output_encoding else "off",
+            display_name_html=guards.encode_output(name, eff),
             nonce=request.state.csp_nonce,
         )
 
@@ -264,12 +266,16 @@ def create_app(
     @app.post("/api/agent")
     def agent_endpoint(body: AgentIn) -> dict:
         tool_llm = tool_llm_factory(body.provider, body.model, body.api_key)
-        reply, calls = agent.run(tool_llm, body.session_id, body.message, bank, store, settings)
+        eff = effective_settings(settings, sess, body.session_id, "m5")
+        reply, calls = agent.run(tool_llm, body.session_id, body.message, bank, store, eff)
         return {"reply": reply, "tool_calls": [{"name": n, "args": a} for n, a, _ in calls]}
 
     @app.post("/api/mcp-agent")
     async def mcp_agent(body: AgentIn) -> dict:
         tool_llm = tool_llm_factory(body.provider, body.model, body.api_key)
+        # NOTE (S9.2): M6 guards live inside the MCPHost, built by mcp_host_factory with the
+        # base settings. Per-session L1/L2 for M6 lands with the per-participant MCP isolation
+        # work (spec S9 §12); the factory will take effective settings then.
         async with mcp_host_factory(body.session_id) as host:
             reply, calls = await agent.run_mcp(
                 tool_llm, body.session_id, body.message, host, store, settings
@@ -279,10 +285,11 @@ def create_app(
     @app.post("/api/dispute")
     def dispute_endpoint(body: DisputeIn) -> dict:
         tool_llm = tool_llm_factory(body.provider, body.model, body.api_key)
+        eff = effective_settings(settings, sess, body.session_id, "m7")
         decision, transcript = dispute_pipeline.run_dispute(
             tool_llm, body.session_id,
             {"account": body.account, "amount": body.amount, "dispute_text": body.dispute_text},
-            bank, store, settings)
+            bank, store, eff)
         return {
             "decision": decision,
             "transcript": [{"from": m["signer"], "content": m["content"]} for m in transcript],
@@ -291,7 +298,8 @@ def create_app(
     @app.post("/api/guarded-chat")
     def guarded_chat(body: ChatIn) -> dict:
         llm = llm_factory(body.provider, body.model, body.api_key)
-        reply = halo.guarded_turn(store, llm, settings, body.session_id, body.message)
+        eff = effective_settings(settings, sess, body.session_id, "m8")
+        reply = halo.guarded_turn(store, llm, eff, body.session_id, body.message)
         return {"reply": reply}
 
     @app.get("/capstone")
