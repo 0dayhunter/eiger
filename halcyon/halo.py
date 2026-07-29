@@ -14,12 +14,13 @@ def handle_turn(
     session_id: str,
     message: str,
     module: str = "m1",
+    history: list[dict] | None = None,
 ) -> str:
     if settings.sec_input_filter and guards.input_filter_blocks(message):
         audit.record(store, session_id, module, audit.INPUT_FILTERED, session_id,
                      {"message": message})
         return REFUSAL
-    messages = guards.assemble(settings, message)
+    messages = guards.assemble(settings, message, history)
     try:
         reply = llm.chat(messages)
     except Exception:

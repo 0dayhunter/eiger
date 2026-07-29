@@ -45,16 +45,28 @@ def input_filter_blocks(message: str) -> bool:
     return any(re.search(p, m) for p in _OVERRIDE_PATTERNS)
 
 
-def assemble(settings: Settings, user_message: str) -> list[dict]:
+def assemble(
+    settings: Settings, user_message: str, history: list[dict] | None = None
+) -> list[dict]:
+    hist = list(history or [])
     if settings.sec_system_prompt_hardening:
         # Secret removed from the prompt entirely; structured role separation.
-        return [
-            {"role": "system", "content": SYSTEM_BASE},
-            {"role": "user", "content": user_message},
-        ]
-    # Vulnerable: token lives in the system text, concatenated into one turn.
-    concatenated = SYSTEM_WITH_TOKEN + "\n\nUser: " + user_message
-    return [{"role": "user", "content": concatenated}]
+        # Prior turns sit between the system message and the new user turn.
+        return (
+            [{"role": "system", "content": SYSTEM_BASE}]
+            + hist
+            + [{"role": "user", "content": user_message}]
+        )
+    if not hist:
+        # Vulnerable single-turn: token lives in the system text, concatenated into one turn.
+        concatenated = SYSTEM_WITH_TOKEN + "\n\nUser: " + user_message
+        return [{"role": "user", "content": concatenated}]
+    # Vulnerable multi-turn: token-bearing context first, then prior turns, then new user turn.
+    return (
+        [{"role": "user", "content": SYSTEM_WITH_TOKEN}]
+        + hist
+        + [{"role": "user", "content": "User: " + user_message}]
+    )
 
 
 def encode_output(text: str, settings: Settings) -> str:
