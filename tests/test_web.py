@@ -19,7 +19,7 @@ def make_client(env, reply):
     bank = Bank()
     vault = TokenVault({SERVER_CORE: "core-token", SERVER_CRM: "crm-token"})
     tool_llm_factory = lambda p, m, k: StubToolLLM([FinalAnswer("(no agent)")])  # noqa: E731
-    mcp_host_factory = lambda sid: in_memory_host(  # noqa: E731
+    mcp_host_factory = lambda sid, _s: in_memory_host(  # noqa: E731
         bank, vault, crm_fixtures.SEED, store, settings, sid
     )
     app = create_app(
@@ -37,7 +37,7 @@ def make_client_kb(env, reply):
     bank = Bank()
     vault = TokenVault({SERVER_CORE: "core-token", SERVER_CRM: "crm-token"})
     tool_llm_factory = lambda p, m, k: StubToolLLM([FinalAnswer("(no agent)")])  # noqa: E731
-    mcp_host_factory = lambda sid: in_memory_host(  # noqa: E731
+    mcp_host_factory = lambda sid, _s: in_memory_host(  # noqa: E731
         bank, vault, crm_fixtures.SEED, store, settings, sid
     )
     app = create_app(
@@ -56,7 +56,7 @@ def make_client_agent(env, script):
     bank.seed(bank_fixtures.seed_for("p1"))
     vault = TokenVault({SERVER_CORE: "core-token", SERVER_CRM: "crm-token"})
     tool_llm_factory = lambda p, m, k: StubToolLLM(list(script))  # noqa: E731
-    mcp_host_factory = lambda sid: in_memory_host(  # noqa: E731
+    mcp_host_factory = lambda sid, _s: in_memory_host(  # noqa: E731
         bank, vault, crm_fixtures.SEED, store, settings, sid
     )
     app = create_app(
@@ -149,7 +149,7 @@ def test_progress_survives_new_app_same_store():
     bank = Bank()
     vault = TokenVault({SERVER_CORE: "core-token", SERVER_CRM: "crm-token"})
     tool_llm_factory = lambda p, m, k: StubToolLLM([FinalAnswer("(no agent)")])  # noqa: E731
-    mcp_host_factory = lambda sid: in_memory_host(  # noqa: E731
+    mcp_host_factory = lambda sid, _s: in_memory_host(  # noqa: E731
         bank, vault, crm_fixtures.SEED, store, settings, sid
     )
     app1 = create_app(

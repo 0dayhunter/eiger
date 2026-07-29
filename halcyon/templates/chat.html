@@ -219,7 +219,7 @@
     L0: [{ m: "m1", label: "M1 injection" }, { m: "m2", label: "M2 output" }],
     L1: [{ m: "m3", label: "M3 RAG" }],
     L2: [{ m: "m5", label: "M5 tools" }],              // M4 has no runtime guard
-    L3: [{ m: "m6", label: "M6 MCP", disabled: true }],
+    L3: [{ m: "m6", label: "M6 MCP" }],
     L4: [{ m: "m7", label: "M7 multi-agent" }],
     L5: [{ m: "m8", label: "M8 guardrails" }],
   };
@@ -232,7 +232,7 @@
     const h = document.createElement("h3");
     h.textContent = "Guardrails";
     sidebar.appendChild(h);
-    for (const { m, label, disabled } of TAB_MODULES[tab]) {
+    for (const { m, label } of TAB_MODULES[tab]) {
       const row = document.createElement("div");
       row.className = "sb-row";
       const name = document.createElement("span");
@@ -242,22 +242,17 @@
       btn.className = "level-toggle";
       const paint = () => { btn.textContent = levelOf(m); btn.dataset.level = levelOf(m); };
       paint();
-      if (disabled) {
+      btn.onclick = async () => {
+        const next = levelOf(m) === "L1" ? "L2" : "L1";
         btn.disabled = true;
-        btn.title = "MCP guardrail level is process-wide this release";
-      } else {
-        btn.onclick = async () => {
-          const next = levelOf(m) === "L1" ? "L2" : "L1";
-          btn.disabled = true;
-          try {
-            await fetch("/api/level", {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ session_id: sid, module: m, level: next }),
-            });
-            levels[m] = next; paint();
-          } finally { btn.disabled = false; }
-        };
-      }
+        try {
+          await fetch("/api/level", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ session_id: sid, module: m, level: next }),
+          });
+          levels[m] = next; paint();
+        } finally { btn.disabled = false; }
+      };
       row.appendChild(name); row.appendChild(btn); sidebar.appendChild(row);
     }
   }

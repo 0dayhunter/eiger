@@ -38,8 +38,8 @@ if _mcp_core_url and _mcp_crm_url:
         "mcp_host_factory: using http_host over %s / %s", _core_url, _crm_url
     )
 
-    def _mcp_host_factory(session_id: str):
-        return http_host(_core_url, _crm_url, _vault, _store, _settings, session_id)
+    def _mcp_host_factory(session_id: str, settings=_settings):
+        return http_host(_core_url, _crm_url, _vault, _store, settings, session_id)
 else:
     # Local single-process dev fallback: no deployed MCP containers to reach,
     # so run the same servers in-memory against this process's own fixtures.
@@ -47,8 +47,8 @@ else:
         "mcp_host_factory: using in_memory_host fallback (MCP_CORE_URL/MCP_CRM_URL not set)"
     )
 
-    def _mcp_host_factory(session_id: str):
-        return in_memory_host(_bank, _vault, crm_fixtures.SEED, _store, _settings, session_id)
+    def _mcp_host_factory(session_id: str, settings=_settings):
+        return in_memory_host(_bank, _vault, crm_fixtures.SEED, _store, settings, session_id)
 
 
 app = create_app(_store, _settings, _factory, _kb, _bank, _tool_llm_factory, _mcp_host_factory)

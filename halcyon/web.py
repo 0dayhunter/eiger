@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 LLMFactory = Callable[[str | None, str | None, str | None], LLM]
 ToolLLMFactory = Callable[[str | None, str | None, str | None], ToolLLM]
-MCPHostFactory = Callable[[str], AbstractAsyncContextManager["MCPHost"]]
+MCPHostFactory = Callable[[str, Settings], AbstractAsyncContextManager["MCPHost"]]
 
 
 class ChatIn(BaseModel):
@@ -292,12 +292,13 @@ def create_app(
     @app.post("/api/mcp-agent")
     async def mcp_agent(body: AgentIn) -> dict:
         tool_llm = tool_llm_factory(*_mcfg(body.session_id, body.provider, body.model, body.api_key))
-        # NOTE (S9.2): M6 guards live inside the MCPHost, built by mcp_host_factory with the
-        # base settings. Per-session L1/L2 for M6 lands with the per-participant MCP isolation
-        # work (spec S9 §12); the factory will take effective settings then.
-        async with mcp_host_factory(body.session_id) as host:
+        # M6 guards read their flags from the MCPHost's settings. The host is built per
+        # request, so passing this session's effective settings makes the L1/L2 flip
+        # per-session and restart-free, like every other module.
+        eff = effective_settings(settings, sess, body.session_id, "m6")
+        async with mcp_host_factory(body.session_id, eff) as host:
             reply, calls = await agent.run_mcp(
-                tool_llm, body.session_id, body.message, host, store, settings
+                tool_llm, body.session_id, body.message, host, store, eff
             )
         return {"reply": reply, "tool_calls": [{"name": n, "args": a} for n, a, _ in calls]}
 

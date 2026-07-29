@@ -28,7 +28,7 @@ def make_client_capturing():
         return StubLLM("R")
 
     tool_llm_factory = lambda p, m, k: StubToolLLM([FinalAnswer("x")])  # noqa: E731
-    mcp_host_factory = lambda sid: in_memory_host(  # noqa: E731
+    mcp_host_factory = lambda sid, _s: in_memory_host(  # noqa: E731
         bank, vault, crm_fixtures.SEED, store, settings, sid
     )
     app = create_app(

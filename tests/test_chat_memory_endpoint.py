@@ -21,7 +21,7 @@ def make_client(reply="stub-reply", mode="vulnerable"):
     vault = TokenVault({SERVER_CORE: "core-token", SERVER_CRM: "crm-token"})
     ss = InMemorySessionState()
     tool_llm_factory = lambda p, m, k: StubToolLLM([FinalAnswer("(no agent)")])  # noqa: E731
-    mcp_host_factory = lambda sid: in_memory_host(  # noqa: E731
+    mcp_host_factory = lambda sid, _s: in_memory_host(  # noqa: E731
         bank, vault, crm_fixtures.SEED, store, settings, sid
     )
     app = create_app(
