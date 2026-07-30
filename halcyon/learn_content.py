@@ -184,4 +184,118 @@ LEARN: dict[str, dict] = {
             },
         ],
     },
+    "L2": {
+        "title": "L2 · Agent — tools + supply chain",
+        "primer": (
+            "An agent doesn't just talk — it acts, by calling tools: check a balance, transfer "
+            "money, issue a refund, change an email on file. The model decides which tool to call "
+            "and with which arguments, but the arguments themselves come from the conversation, "
+            "which participants control. If nothing checks that the account named in a tool call "
+            "belongs to the person asking, the agent will happily act on someone else's money. "
+            "That's excessive agency / confused deputy: the agent has more authority than the "
+            "request in front of it should grant, and nothing narrows it back down before the "
+            "action runs.\n\n"
+            "The second risk sits underneath the agent entirely: the ML artifacts and third-party "
+            "code the app ships with. Python's pickle format doesn't just store data — loading a "
+            "pickle executes arbitrary opcodes, including calls to arbitrary callables. So an "
+            "artifact isn't just bytes to parse; the act of deserializing an untrusted one runs "
+            "attacker-chosen code, with no further steps required."
+        ),
+        "snippets": [
+            {
+                "title": "Vulnerable: any tool call is authorized when the flag is off",
+                "kind": "vulnerable",
+                "source": "halcyon/guards.py",
+                "code": (
+                    "    if not settings.sec_tool_scope_enforcement:\n"
+                    "        return True"
+                ),
+                "notes": [
+                    "This is the first line of `authorize_tool_call` — when the flag is off it returns `True` immediately, before looking at the tool name or arguments at all.",
+                    "`tools.execute` calls this once per tool invocation and only proceeds with the action if it returns `True`; here every call passes.",
+                    "That includes the money-moving tools (`transfer_funds`, `issue_refund`) and `update_email` — the ones the ownership checks further down exist to constrain.",
+                    "The account the tool acts on (e.g. `to_account`) comes straight from the model's tool-call arguments, which are steered by the conversation — nothing here confirms it's the caller's own account.",
+                ],
+            },
+            {
+                "title": "Vulnerable: loading an artifact means executing it",
+                "kind": "vulnerable",
+                "source": "halcyon/artifacts.py",
+                "code": (
+                    "    # VULNERABLE: arbitrary deserialization — loading a poisoned artifact executes code.\n"
+                    "    with open(path, \"rb\") as f:\n"
+                    "        return pickle.load(f)  # noqa: S301"
+                ),
+                "notes": [
+                    "This is the fallback branch of `load_artifact` when `SEC_ARTIFACT_VERIFICATION` is off — it runs for any path, no matter its extension or origin.",
+                    "`pickle.load` reconstructs Python objects by executing the opcodes stored in the file; a `REDUCE` opcode can invoke an arbitrary callable during that process.",
+                    "So this isn't 'load then maybe run' — the load itself is the execution; there's no separate step where a participant would need to run the file.",
+                    "No check of file type, source, or contents happens before this call runs.",
+                ],
+            },
+            {
+                "title": "Guard: SEC_TOOL_SCOPE_ENFORCEMENT — ownership check before the action",
+                "kind": "guard",
+                "source": "halcyon/guards.py",
+                "code": (
+                    "    if tool_name in _MONEY_TOOLS:\n"
+                    "        return bank.owns(session_id, str(args.get(\"to_account\", \"\")))\n"
+                    "    if tool_name == \"update_email\":\n"
+                    "        return bank.owns(session_id, str(args.get(\"account\", \"\")))\n"
+                    "    return True"
+                ),
+                "notes": [
+                    "`_MONEY_TOOLS` is `{\"transfer_funds\", \"issue_refund\"}` — for those two, the account named in the tool call's own `to_account` argument must be owned by the calling session.",
+                    "`bank.owns(session_id, account_id)` checks the account record's `owner_session` field against the current session — a per-session ownership lookup, not a role or permission check.",
+                    "`update_email` gets the same treatment, keyed off the call's `account` argument instead.",
+                    "Every other tool name still returns `True` — the guard is scoped to the money-moving and identity-changing actions, not a blanket allow or deny.",
+                    "This block only runs when `SEC_TOOL_SCOPE_ENFORCEMENT` is on; with it off, execution never reaches these lines because the earlier passthrough already returned.",
+                ],
+            },
+            {
+                "title": "Guard: SEC_ARTIFACT_VERIFICATION — safetensors-only + hash allowlist",
+                "kind": "guard",
+                "source": "halcyon/artifacts.py",
+                "code": (
+                    "    if settings.sec_artifact_verification:\n"
+                    "        p = Path(path)\n"
+                    "        if p.suffix != \".safetensors\":\n"
+                    "            raise ArtifactError(f\"refused: only .safetensors permitted, got '{p.suffix}'\")\n"
+                    "        digest = sha256_file(p)\n"
+                    "        if digest not in ALLOWED_HASHES:\n"
+                    "            raise ArtifactError(f\"refused: {digest} not in pinned allowlist\")\n"
+                    "        return p.read_bytes()  # teaching stub: a real reader would parse safetensors"
+                ),
+                "notes": [
+                    "Two checks gate every load: the extension must be `.safetensors` — a format that stores tensors, not pickled executable objects — and the file's sha256 must already be in `ALLOWED_HASHES`, a pinned allowlist.",
+                    "Either check failing raises `ArtifactError` and refuses to load; there's no fallback to the pickle path from here.",
+                    "`ALLOWED_HASHES` starts empty in this module — an operator has to deliberately pin a hash before that specific artifact is allowed through.",
+                    "The comment on the return line is honest about scope: this stub just returns raw bytes once verification passes; the teaching point is refusing untrusted deserialization, not parsing the format.",
+                ],
+            },
+            {
+                "title": "Extra: how the audit tool finds a poisoned pickle without running it",
+                "kind": "guard",
+                "source": "halcyon/scan_artifact.py",
+                "code": (
+                    "            elif name == \"GLOBAL\" and isinstance(arg, str):\n"
+                    "                mod = arg.split(\" \")[0].split(\".\")[0]\n"
+                    "                if mod in _DANGEROUS_MODULES:\n"
+                    "                    dangerous.append(f\"GLOBAL -> {arg}\")\n"
+                    "            elif name == \"STACK_GLOBAL\":\n"
+                    "                mod = (recent[0] if recent else \"\").split(\".\")[0]\n"
+                    "                if mod in _DANGEROUS_MODULES:\n"
+                    "                    dangerous.append(f\"STACK_GLOBAL -> {' '.join(recent)}\")\n"
+                    "            elif name == \"REDUCE\":\n"
+                    "                dangerous.append(\"REDUCE (callable invocation)\")"
+                ),
+                "notes": [
+                    "`scan()` walks the pickle bytecode opcode by opcode with `pickletools.genops` — it inspects the stream, it never unpickles it, so scanning itself can't trigger the exploit.",
+                    "`GLOBAL`/`STACK_GLOBAL` opcodes name a module to import; if that module is in `_DANGEROUS_MODULES` the finding is recorded.",
+                    "`REDUCE` is the opcode that actually calls a callable during unpickling — its presence is flagged on its own, since that's the mechanism that turns 'deserialize a file' into 'run code'.",
+                    "This is the same mechanism the vulnerable `load_artifact` branch above would trigger for real — the scanner reads for it instead of executing it.",
+                ],
+            },
+        ],
+    },
 }
