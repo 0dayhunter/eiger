@@ -7,6 +7,121 @@ and the guard, never the attack string.
 """
 
 LEARN: dict[str, dict] = {
+    "L0": {
+        "title": "L0 · Chatbot — the base LLM assistant",
+        "primer": (
+            "An LLM chatbot works by concatenating a system prompt — the developer's "
+            "instructions, sometimes including secrets — with the user's message into a single "
+            "call to the model. The model sees one blob of text; it has no built-in way to tell "
+            "which parts were written by the developer and which by the user.\n\n"
+            "Vanilla Iggy has two flaws that follow directly from that. First, an internal "
+            "operator token sits inside the same text block as the rest of the system prompt, "
+            "with no role separation — a message that asks the assistant to repeat or reveal "
+            "everything it was told upstream can pull the secret out along with the rest of the "
+            "prompt. Second, whatever the assistant replies gets written straight into the page "
+            "without being escaped, so if that text contains markup, the browser renders it: a "
+            "reply an attacker can influence becomes a reply an attacker can execute — a classic "
+            "stored cross-site-scripting flaw."
+        ),
+        "snippets": [
+            {
+                "title": "Vulnerable: secret token concatenated into one untyped turn",
+                "kind": "vulnerable",
+                "source": "halcyon/guards.py",
+                "code": (
+                    "    if not hist:\n"
+                    "        # Vulnerable single-turn: token lives in the system text, concatenated into one turn.\n"
+                    "        concatenated = SYSTEM_WITH_TOKEN + \"\\n\\nUser: \" + user_message\n"
+                    "        return [{\"role\": \"user\", \"content\": concatenated}]"
+                ),
+                "notes": [
+                    "`SYSTEM_WITH_TOKEN` holds the internal operator token alongside the rest of the developer instructions.",
+                    "It's string-concatenated with the user's own message into one block of text.",
+                    "The whole thing is sent back as a single `user`-role message — no `system` role at all.",
+                    "The model has no structural signal for 'this part is trusted, this part is not'; it's all one turn.",
+                    "Anything that can make the model echo its context echoes the token too.",
+                ],
+            },
+            {
+                "title": "Vulnerable: reply text passed straight to the page",
+                "kind": "vulnerable",
+                "source": "halcyon/guards.py",
+                "code": (
+                    "def encode_output(text: str, settings: Settings) -> str:\n"
+                    "    if settings.sec_output_encoding:\n"
+                    "        return html.escape(text)\n"
+                    "    return text"
+                ),
+                "notes": [
+                    "Every reply (and any user-supplied text rendered alongside it) passes through this function before hitting the page.",
+                    "With the flag off, the `return text` branch runs: the string goes out completely unmodified.",
+                    "No HTML entities are escaped, so markup characters in the text are interpreted as markup by the browser.",
+                    "This is what turns attacker-influenced text into attacker-controlled page behaviour.",
+                ],
+            },
+            {
+                "title": "Guard: SEC_SYSTEM_PROMPT_HARDENING — secret out, roles separated",
+                "kind": "guard",
+                "source": "halcyon/guards.py",
+                "code": (
+                    "    if settings.sec_system_prompt_hardening:\n"
+                    "        # Secret removed from the prompt entirely; structured role separation.\n"
+                    "        # Prior turns sit between the system message and the new user turn.\n"
+                    "        return (\n"
+                    "            [{\"role\": \"system\", \"content\": SYSTEM_BASE}]\n"
+                    "            + hist\n"
+                    "            + [{\"role\": \"user\", \"content\": user_message}]\n"
+                    "        )"
+                ),
+                "notes": [
+                    "`SYSTEM_BASE` has no token in it at all — the secret simply isn't in the prompt to leak.",
+                    "The instructions go out as a proper `system`-role message, distinct from the `user`-role turns.",
+                    "Prior conversation history and the new user message stay in their own `user`/`assistant` turns.",
+                    "That structural separation is what a 'repeat everything above' style request can no longer defeat, since there's no secret sitting in the text it can echo.",
+                ],
+            },
+            {
+                "title": "Guard: SEC_INPUT_FILTER — override-attempt classifier",
+                "kind": "guard",
+                "source": "halcyon/guards.py",
+                "code": (
+                    "def input_filter_blocks(message: str) -> bool:\n"
+                    "    m = message.lower()\n"
+                    "    return any(re.search(p, m) for p in _OVERRIDE_PATTERNS)"
+                ),
+                "notes": [
+                    "Runs the incoming message against `_OVERRIDE_PATTERNS`, a set of regexes for common override/jailbreak phrasing.",
+                    "Lower-cases the message first so the match isn't defeated by simple case changes.",
+                    "Returns a plain boolean — the caller decides whether to block, and logs the attempt to the audit log.",
+                    "It's a classifier on the request, independent of the prompt-assembly guard above; the two stack.",
+                ],
+            },
+            {
+                "title": "Guard: nonce-based CSP (pairs with output encoding, M2)",
+                "kind": "guard",
+                "source": "halcyon/web.py",
+                "code": (
+                    "    @app.middleware(\"http\")\n"
+                    "    async def _csp(request: Request, call_next):\n"
+                    "        nonce = secrets.token_urlsafe(16)\n"
+                    "        request.state.csp_nonce = nonce\n"
+                    "        resp = await call_next(request)\n"
+                    "        if settings.sec_output_encoding:\n"
+                    "            resp.headers[\"Content-Security-Policy\"] = (\n"
+                    "                f\"default-src 'self'; script-src 'self' 'nonce-{nonce}'; img-src 'self' data:\"\n"
+                    "            )\n"
+                    "        return resp"
+                ),
+                "notes": [
+                    "A fresh random nonce is generated for every request and stashed on `request.state`.",
+                    "Only the same flag, `SEC_OUTPUT_ENCODING`, adds the `Content-Security-Policy` header at all.",
+                    "The policy only allows scripts matching that request's nonce — a script the template didn't emit can't carry it.",
+                    "So even a byte that slips past `html.escape` still can't execute, because the browser refuses any `<script>` without the right nonce.",
+                    "Escaping (`encode_output`) and CSP are two independent layers behind the same flag — belt and braces for M2.",
+                ],
+            },
+        ],
+    },
     "L1": {
         "title": "L1 · RAG — retrieval-augmented generation",
         "primer": (
