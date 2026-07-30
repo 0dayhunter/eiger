@@ -99,6 +99,15 @@ def test_root_serves_reach_test_page():
     assert "reach-test" in r.text.lower()
 
 
+def test_reach_page_is_dark_eiger():
+    client, _ = make_client({"HALCYON_MODE": "vulnerable"}, "hi")
+    text = client.get("/").text
+    assert "reach-test" in text.lower()      # still the reach screen
+    assert "Eiger" in text and "Halcyon" not in text
+    assert "#0b1220" in text                  # dark alpine palette applied
+    assert 'href="/chat"' in text             # entry link preserved
+
+
 def test_chat_page_has_model_modal():
     # Replaces the old local/remote selector assertion: the config UI is now a
     # five-provider modal, not a two-option inline select.
