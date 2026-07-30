@@ -24,4 +24,10 @@ def answer(kb: KnowledgeBase, llm: LLM, store: Store, settings: Settings,
                          session_id, {"chunk": c.id})
     reply = llm.chat(messages)
     canary.scan_and_record(store, session_id, module, reply, actor=session_id)
+    restricted_seen = any(
+        c.access == "restricted" and c.owner_session != session_id for c in visible
+    )
+    if restricted_seen and guards.RAG_MEMO_CANARY in reply:
+        audit.record(store, session_id, module, audit.RESTRICTED_DOC_DISCLOSED,
+                     session_id, {})
     return reply, visible

@@ -152,6 +152,12 @@ def test_chat_page_has_rag_panel():
     assert 'id="kbsubmit"' in body and 'id="askbtn"' in body
 
 
+def test_m3_panel_states_the_objective():
+    client, _ = make_client({"HALCYON_MODE": "vulnerable"}, "hi")
+    text = client.get("/chat", params={"session": "p1"}).text
+    assert "RAG-OWNED-7788" in text  # participant is told the target string
+
+
 def test_progress_survives_new_app_same_store():
     store = InMemoryStore()
     settings = load_settings({"HALCYON_MODE": "vulnerable"})
