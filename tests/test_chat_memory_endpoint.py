@@ -25,7 +25,8 @@ def make_client(reply="stub-reply", mode="vulnerable"):
         bank, vault, crm_fixtures.SEED, store, settings, sid
     )
     app = create_app(
-        store, settings, lambda p, m, k: StubLLM(reply), kb, bank,
+        store, settings, lambda p, m, k: StubLLM(reply),
+        lambda sid: kb, lambda sid: bank,
         tool_llm_factory, mcp_host_factory, session_state=ss,
     )
     return TestClient(app), ss

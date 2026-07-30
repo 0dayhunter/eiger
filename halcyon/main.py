@@ -1,22 +1,21 @@
 import logging
 import os
 
-from halcyon import crm_fixtures, kb_fixtures
-from halcyon.bank import Bank
+from halcyon import bank_fixtures, crm_fixtures, kb_fixtures
 from halcyon.chroma_kb import ChromaKB
 from halcyon.config import load_settings
 from halcyon.llm import build_llm, build_tool_llm
 from halcyon.mcp_host import http_host, in_memory_host
 from halcyon.mcp_vault import SERVER_CORE, SERVER_CRM, TokenVault
 from halcyon.pg_store import PostgresStore, init_schema
+from halcyon.session_resources import BankProvider, KBProvider, slug
 from halcyon.web import create_app
 
 _settings = load_settings(os.environ)
 init_schema(_settings.database_url)
 _store = PostgresStore(_settings.database_url)
-_kb = ChromaKB()
-_kb.seed(kb_fixtures.SEED)
-_bank = Bank()
+_kb_for = KBProvider(lambda sid: ChromaKB(collection=slug(sid)), kb_fixtures.SEED)
+_bank_for = BankProvider(bank_fixtures.seed_for)
 _vault = TokenVault({SERVER_CORE: "core-token-dev", SERVER_CRM: "crm-token-dev"})
 
 
@@ -48,7 +47,11 @@ else:
     )
 
     def _mcp_host_factory(session_id: str, settings=_settings):
-        return in_memory_host(_bank, _vault, crm_fixtures.SEED, _store, settings, session_id)
+        return in_memory_host(
+            _bank_for(session_id), _vault, crm_fixtures.SEED, _store, settings, session_id
+        )
 
 
-app = create_app(_store, _settings, _factory, _kb, _bank, _tool_llm_factory, _mcp_host_factory)
+app = create_app(
+    _store, _settings, _factory, _kb_for, _bank_for, _tool_llm_factory, _mcp_host_factory
+)

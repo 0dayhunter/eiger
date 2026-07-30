@@ -8,9 +8,10 @@ from halcyon.kb import Chunk
 class ChromaKB:
     """KnowledgeBase backed by an in-process, ephemeral ChromaDB collection."""
 
-    def __init__(self) -> None:
+    def __init__(self, collection: str = "halcyon") -> None:
         self._client = chromadb.Client()
-        self._collection = self._client.get_or_create_collection("halcyon")
+        self._name = collection
+        self._collection = self._client.get_or_create_collection(collection)
         self._seq = 0
 
     def add(self, text: str, provenance: str, access: str = "public",
@@ -51,6 +52,6 @@ class ChromaKB:
                       f.get("access", "public"), f.get("owner_session", ""))
 
     def clear(self) -> None:
-        self._client.delete_collection("halcyon")
-        self._collection = self._client.get_or_create_collection("halcyon")
+        self._client.delete_collection(self._name)
+        self._collection = self._client.get_or_create_collection(self._name)
         self._seq = 0

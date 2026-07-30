@@ -26,7 +26,8 @@ def _client(mode):
     ])
     mcp_host_factory = lambda sid, _s: in_memory_host(  # noqa: E731
         bank, vault, crm_fixtures.SEED, store, settings, sid)
-    app = create_app(store, settings, lambda p, m, k: StubLLM(""), kb, bank,
+    app = create_app(store, settings, lambda p, m, k: StubLLM(""),
+                     lambda sid: kb, lambda sid: bank,
                      tool_llm_factory, mcp_host_factory)
     return TestClient(app), bank
 

@@ -32,7 +32,8 @@ def make_client_capturing():
         bank, vault, crm_fixtures.SEED, store, settings, sid
     )
     app = create_app(
-        store, settings, llm_factory, kb, bank, tool_llm_factory, mcp_host_factory,
+        store, settings, llm_factory, lambda sid: kb, lambda sid: bank,
+        tool_llm_factory, mcp_host_factory,
         session_state=ss,
     )
     return TestClient(app), captured
