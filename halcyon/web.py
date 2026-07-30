@@ -117,7 +117,10 @@ def create_app(
     mcp_host_factory: MCPHostFactory,
     session_state: SessionState | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="Halcyon")
+    if settings.expose_openapi:
+        app = FastAPI(title="Eiger")
+    else:
+        app = FastAPI(title="Eiger", openapi_url=None, docs_url=None, redoc_url=None)
     sess: SessionState = session_state or InMemorySessionState()
 
     def _mcfg(

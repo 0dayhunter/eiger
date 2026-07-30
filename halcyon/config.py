@@ -31,6 +31,7 @@ class Settings:
     ollama_model: str
     database_url: str
     default_provider: str
+    expose_openapi: bool
 
 
 def load_settings(env: Mapping[str, str]) -> Settings:
@@ -56,6 +57,7 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         ollama_model=env.get("OLLAMA_MODEL", "llama3.1:8b"),
         database_url=env.get("DATABASE_URL", ""),
         default_provider=env.get("DEFAULT_PROVIDER", "local"),
+        expose_openapi=_flag(env, "EIGER_EXPOSE_OPENAPI", False),
     )
 
 

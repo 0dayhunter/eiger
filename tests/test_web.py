@@ -304,3 +304,11 @@ def test_chat_page_has_welcome_hero():
     assert 'id="welcome-enter"' in text     # the Enter button exists
     assert 'id="welcome-name"' in text      # optional display-name field
     assert "Meet Iggy" in text              # branded hero copy
+
+
+def test_openapi_hidden_by_default_exposed_when_flagged():
+    default, _ = make_client({"HALCYON_MODE": "vulnerable"}, "hi")
+    assert default.get("/openapi.json").status_code == 404
+    assert default.get("/docs").status_code == 404
+    exposed, _ = make_client({"HALCYON_MODE": "vulnerable", "EIGER_EXPOSE_OPENAPI": "1"}, "hi")
+    assert exposed.get("/openapi.json").status_code == 200
