@@ -42,3 +42,7 @@ def test_no_exploit_payloads_in_content():
 
 def test_l1_present():
     assert "L1" in LEARN
+
+
+def test_all_layers_present():
+    assert set(LEARN) == {"L0", "L1", "L2", "L3", "L4", "L5"}

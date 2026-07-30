@@ -466,4 +466,82 @@ LEARN: dict[str, dict] = {
             },
         ],
     },
+    "L5": {
+        "title": "L5 · Production — the guardrail",
+        "primer": (
+            "Production LLM systems often sit a guardrail — a prompt-firewall — in front of "
+            "the model: a blocklist of dangerous phrasings checked before the request ever "
+            "reaches the model. The naive version matches only the raw string exactly as it "
+            "arrived, so an attacker doesn't need a new idea, just a different spelling — "
+            "leetspeak substitutions, zero-width characters wedged into the words, unicode "
+            "look-alikes, extra spacing — and the same request sails through unrecognized "
+            "while meaning exactly the same thing to the model that reads it afterward.\n\n"
+            "A real guard canonicalizes the input first — normalizing unicode, stripping "
+            "zero-width noise, undoing leetspeak, collapsing whitespace — and matches the "
+            "blocklist against that canonical form instead of the raw one. Obfuscation stops "
+            "working because the guard is comparing meaning, not literal bytes, before "
+            "deciding whether to let the message through."
+        ),
+        "snippets": [
+            {
+                "title": "Vulnerable: raw-only match lets an obfuscated hit through as 'bypassed'",
+                "kind": "vulnerable",
+                "source": "halcyon/guards.py",
+                "code": (
+                    "    # vulnerable: naive raw-only match\n"
+                    "    if raw:\n"
+                    "        return GuardrailDecision(allow=False, event=None)  # blocks un-obfuscated attacks\n"
+                    "    if canon:\n"
+                    "        return GuardrailDecision(allow=True, event=\"bypassed\")  # obfuscated payload slipped through\n"
+                    "    return GuardrailDecision(allow=True, event=None)"
+                ),
+                "notes": [
+                    "This is the vulnerable branch of `guardrail_check`, taken when `settings.sec_guardrails` is off.",
+                    "`raw` is `guardrail_blocklist_hit(message)` — the blocklist checked against the message exactly as the participant typed it.",
+                    "A raw hit blocks immediately with `event=None` — the naive gate catches unobfuscated phrasing just fine.",
+                    "Only if the raw check is clean does the same blocklist get re-run against `canonicalize(message)`; a hit there means the phrasing was obfuscated but still matched once normalized.",
+                    "That obfuscated case is let through anyway — `allow=True` with `event=\"bypassed\"` — the vulnerable path only ever uses the canonical form to log the miss, never to block it.",
+                ],
+            },
+            {
+                "title": "Guard: SEC_GUARDRAILS — match on the canonical form",
+                "kind": "guard",
+                "source": "halcyon/guards.py",
+                "code": (
+                    "    if settings.sec_guardrails:\n"
+                    "        # hardened: match on the canonical form, so obfuscation can't hide the payload\n"
+                    "        if canon:\n"
+                    "            return GuardrailDecision(allow=False, event=\"hardened_block\")\n"
+                    "        return GuardrailDecision(allow=True, event=None)"
+                ),
+                "notes": [
+                    "This is the hardened branch, gated by `settings.sec_guardrails` — the `SEC_GUARDRAILS` flag from the registry.",
+                    "It decides purely on `canon` (`guardrail_blocklist_hit(canonicalize(message))`) — the raw-only check computed earlier in the function isn't consulted on this path.",
+                    "A canonical hit now actually blocks: `allow=False, event=\"hardened_block\"` — obfuscation no longer earns a pass, because the check runs against the normalized text.",
+                    "A clean canonical form allows the message through with `event=None` — no audit noise on the ordinary case.",
+                    "The difference between `\"bypassed\"` and `\"hardened_block\"` is which form of the message decides the outcome, not a different pattern list — `_GUARDRAIL_PATTERNS` is identical in both branches.",
+                ],
+            },
+            {
+                "title": "Guard: canonicalize — de-obfuscation the hardened path relies on",
+                "kind": "guard",
+                "source": "halcyon/guards.py",
+                "code": (
+                    "def canonicalize(text: str) -> str:\n"
+                    "    t = unicodedata.normalize(\"NFKC\", text)\n"
+                    "    t = t.translate(_ZERO_WIDTH)\n"
+                    "    t = t.translate(_LEET)\n"
+                    "    t = re.sub(r\"\\s+\", \" \", t)\n"
+                    "    return t.strip().lower()"
+                ),
+                "notes": [
+                    "`unicodedata.normalize(\"NFKC\", text)` folds unicode look-alikes down to their standard compatibility form.",
+                    "`t.translate(_ZERO_WIDTH)` strips zero-width and BOM characters that would otherwise silently break up a blocklisted phrase.",
+                    "`t.translate(_LEET)` maps common leetspeak substitutions (digits and symbols like `4`, `3`, `0`, `1`, `@`) back to the plain letters they stand in for.",
+                    "`re.sub(r\"\\s+\", \" \", t)` collapses runs of whitespace so inserted spacing can't fragment a blocklisted phrase.",
+                    "The result is stripped and lowercased — the same canonical form `guardrail_blocklist_hit` matches against in both the vulnerable and hardened branches.",
+                ],
+            },
+        ],
+    },
 }
