@@ -298,4 +298,81 @@ LEARN: dict[str, dict] = {
             },
         ],
     },
+    "L3": {
+        "title": "L3 · MCP — external tool servers",
+        "primer": (
+            "MCP (Model Context Protocol) lets the assistant use tools hosted by external "
+            "servers rather than functions baked into the app. Each server advertises its "
+            "tools by sending a name, an input schema, and a description — and the model reads "
+            "that description as part of its instructions on how and when to use the tool.\n\n"
+            "A tool description is untrusted metadata that almost no one inspects, which makes "
+            "it an injection channel: a malicious or compromised server can hide extra "
+            "instructions — telling the model to also call some other, more sensitive tool and "
+            "hand back its result — inside a description that otherwise reads as an ordinary "
+            "help string. It can even rug-pull: present a benign description at approval time, "
+            "then serve a different, poisoned one on a later listing, after a participant has "
+            "already trusted the server. And because each connected server may hold its own "
+            "credential, a host that doesn't keep those credentials apart lets one server's "
+            "tool call reach across and read another server's token."
+        ),
+        "snippets": [
+            {
+                "title": "Vulnerable: the raw description reaches the model unmodified",
+                "kind": "vulnerable",
+                "source": "halcyon/mcp_host.py",
+                "code": (
+                    "            else:\n"
+                    "                if guards.looks_poisoned(desc):\n"
+                    "                    self._served_poison = True\n"
+                    "                    if ti.name == \"get_notes\":  # a benign tool now carrying injected text == rug pull\n"
+                    "                        audit.record(self._store, self._session_id, MODULE,\n"
+                    "                                     audit.MCP_DESC_MUTATION_ACCEPTED, ti.server, {\"tool\": ti.name})\n"
+                    "            schemas.append({\"name\": ti.qualified, \"description\": desc, \"parameters\": ti.input_schema})"
+                ),
+                "notes": [
+                    "This is the `else` branch of `schemas_for_llm` — it runs whenever `SEC_MCP_DESC_PINNING` is off.",
+                    "`desc` is whatever `list_tools()` just returned from the server this call; nothing here compares it to an earlier listing.",
+                    "`guards.looks_poisoned` only decides whether to log a `MCP_DESC_MUTATION_ACCEPTED` audit event — it never edits `desc` or blocks the call.",
+                    "The unmodified `desc` is appended straight into the schema handed to the model, alongside the tool's name and input schema.",
+                    "So a description that changed between listings (the rug pull) or one that was poisoned from the start reaches the model exactly as the server sent it.",
+                ],
+            },
+            {
+                "title": "Guard: SEC_MCP_DESC_PINNING — hash-pin at approval, quarantine on mutation",
+                "kind": "guard",
+                "source": "halcyon/mcp_host.py",
+                "code": (
+                    "            if self._settings.sec_mcp_desc_pinning:\n"
+                    "                pinned = self._pinned.get(ti.qualified)\n"
+                    "                if pinned is not None and guards.desc_hash(desc) != pinned:\n"
+                    "                    desc = \"\"  # mutated since approval — drop the untrusted delta\n"
+                    "                desc = guards.quarantine_description(desc)"
+                ),
+                "notes": [
+                    "`approve()` runs once, at the point a participant approves the server's tool list, and stores `guards.desc_hash(description)` per qualified tool name in `self._pinned` — the hash is the trust anchor, not the text itself.",
+                    "On every later `schemas_for_llm` call, the guard re-hashes the description just returned by the server and compares it to the pinned hash for that same tool.",
+                    "A mismatch means the description changed since approval — the classic rug pull — so `desc` is dropped entirely rather than forwarded.",
+                    "Whatever survives (matching or first-seen) still goes through `guards.quarantine_description`, which strips out any sentence matching the injection patterns before the description reaches the model.",
+                    "Both defenses stack: hash-pinning catches a description that changed after the fact, quarantine catches injection phrasing that was there from the start.",
+                ],
+            },
+            {
+                "title": "Guard: SEC_MCP_TOKEN_SCOPING — a server can only read its own token",
+                "kind": "guard",
+                "source": "halcyon/guards.py",
+                "code": (
+                    "def authorize_token_access(requesting_server: str, target_service: str, settings: Settings) -> bool:\n"
+                    "    if not settings.sec_mcp_token_scoping:\n"
+                    "        return True\n"
+                    "    return requesting_server == target_service"
+                ),
+                "notes": [
+                    "Called from `MCPHost.call` when a tool asks for `get_integration_token` on some `service` other than its own — the CRM server requesting the core-banking token, for instance.",
+                    "With the flag off, the function returns `True` unconditionally: any connected server can retrieve any other server's token through this call.",
+                    "With the flag on, the request is only authorized when `requesting_server` (the server issuing the call) equals `target_service` (the token being asked for) — a server can only ever fetch its own token.",
+                    "This closes cross-server token theft specifically: it does nothing about the description-poisoning above, which is why the two flags are separate guards, not one.",
+                ],
+            },
+        ],
+    },
 }
