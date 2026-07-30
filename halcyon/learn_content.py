@@ -408,7 +408,7 @@ LEARN: dict[str, dict] = {
                     "    return [{\"role\": \"user\", \"content\": content}], _looks_like_injection(dispute_text)"
                 ),
                 "notes": [
-                    "This is the fallback branch of `assemble_agent_prompt` when `SEC_INTER_AGENT_AUTH` is off — it runs for every agent in the pipeline (risk, then action with the risk verdict as `upstream`).",
+                    "This is the fallback branch of `assemble_agent_prompt` when `SEC_INTER_AGENT_AUTH` is off — the risk and action agents both call it (action passes the risk verdict along as `upstream`); intake and supervisor don't use it.",
                     "`instruction`, the raw `dispute_text`, and `upstream` are all string-concatenated into one block and sent back as a single `user`-role message — no channel separates the agent's own task from the customer's words.",
                     "There's no attempt to mark the dispute text as data; it reads exactly like the rest of the case notes the agent is supposed to trust.",
                     "The returned boolean is `_looks_like_injection(dispute_text)` — not `True` — so this only flags propagation when the dispute text matches the same injection-pattern classifier used in the M3 RAG guard; a subtler injection that doesn't match those patterns still propagates but isn't flagged.",
@@ -461,7 +461,7 @@ LEARN: dict[str, dict] = {
                     "In `dispute_pipeline.py`, `_emit` calls `sign_message` for every hop's message when `SEC_INTER_AGENT_AUTH` is on, and leaves `sig` empty otherwise — so the vulnerable path never produces signatures to check.",
                     "`verify_chain` re-derives the expected signature for every message in the chain (`verify_message`) and requires all of them to match — one unsigned or tampered message fails the whole chain.",
                     "The `supervisor` node only calls `verify_chain` inside its `sec_inter_agent_auth` branch; the decision is stamped 'rejected' unless the chain verifies and the action agent's decision was a clean, authorized approval.",
-                    "Without the flag, the supervisor never checks provenance at all — it stamps the decision from `action_decision` alone, which is exactly the rubber-stamping the primer describes.",
+                    "Without the flag, the supervisor never checks provenance or the action decision at all — it unconditionally sets the outcome to 'stamped' (it only inspects `approved_unauthorized` to decide whether to log a `SUPERVISOR_PROVENANCE_BYPASSED` audit event), which is the hardcoded rubber-stamping the primer describes.",
                 ],
             },
         ],
