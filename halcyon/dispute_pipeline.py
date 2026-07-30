@@ -56,7 +56,7 @@ def _execute_refund(
                  {"tool": "issue_refund", "args": args})
     if not guards.authorize_approval(session_id, to, bank, settings):
         return "denied"
-    if not bank.owns(session_id, to):
+    if bank.get(to) is not None and not bank.owns(session_id, to):
         audit.record(store, session_id, MODULE, audit.UNAUTHORIZED_APPROVAL, session_id,
                      {"to_account": to, "amount": amount})
     if bank.get(to) is not None:
@@ -92,7 +92,10 @@ def build_dispute_graph(
         if isinstance(step, ToolCall) and step.name == "issue_refund":
             decision = _execute_refund(session_id, step.args, bank, store, settings)
             to = str(step.args.get("to_account", ""))
-            approved_unauthorized = decision == "approved" and not bank.owns(session_id, to)
+            approved_unauthorized = (
+                decision == "approved" and bank.get(to) is not None
+                and not bank.owns(session_id, to)
+            )
         else:
             decision, approved_unauthorized = "denied", False
         msg = _emit("action", {"decision": decision}, settings, key)

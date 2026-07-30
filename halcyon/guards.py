@@ -185,7 +185,7 @@ def assemble_agent_prompt(
         f"{instruction}\n\nCase notes from customer:\n{dispute_text}\n\n"
         f"Upstream assessment:\n{upstream}"
     )
-    return [{"role": "user", "content": content}], True
+    return [{"role": "user", "content": content}], _looks_like_injection(dispute_text)
 
 
 def authorize_approval(session_id: str, to_account: str, bank: Bank, settings: Settings) -> bool:
