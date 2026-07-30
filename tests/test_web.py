@@ -312,3 +312,18 @@ def test_openapi_hidden_by_default_exposed_when_flagged():
     assert default.get("/docs").status_code == 404
     exposed, _ = make_client({"HALCYON_MODE": "vulnerable", "EIGER_EXPOSE_OPENAPI": "1"}, "hi")
     assert exposed.get("/openapi.json").status_code == 200
+
+
+def test_db_error_returns_503_not_500():
+    import psycopg
+    from tests.test_web import make_client  # reuse helper if needed
+    # a store whose read raises the DB error the pool surfaces under exhaustion
+    client, store = make_client({"HALCYON_MODE": "vulnerable"}, "hi")
+
+    def boom(*a, **k):
+        raise psycopg.OperationalError("connection pool exhausted")
+
+    store.list_sessions = boom  # /board calls list_sessions
+    r = client.get("/board")
+    assert r.status_code == 503
+    assert "retry" in r.text.lower()

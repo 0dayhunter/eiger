@@ -26,3 +26,11 @@ def test_pg_append_query_reset_and_progress(store):
     store.upsert_progress(sid, "m1", True, False)
     assert store.get_progress(sid, "m1") == (True, False)
     assert store.ping() is True
+
+
+def test_pool_round_trips():
+    init_schema(DSN)
+    store = PostgresStore(DSN, max_size=3)
+    store.append_event("s", "m1", "e", "s", {})
+    assert store.ping() is True
+    assert "s" in store.list_sessions()

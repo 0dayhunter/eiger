@@ -121,6 +121,20 @@ def create_app(
         app = FastAPI(title="Eiger")
     else:
         app = FastAPI(title="Eiger", openapi_url=None, docs_url=None, redoc_url=None)
+
+    import psycopg
+    import psycopg_pool
+    from fastapi.responses import JSONResponse
+
+    @app.exception_handler(psycopg.OperationalError)
+    @app.exception_handler(psycopg_pool.PoolTimeout)
+    async def _db_busy(_request, _exc):  # type: ignore[no-untyped-def]
+        return JSONResponse(
+            status_code=503,
+            content={"error": "database busy, please retry"},
+            headers={"Retry-After": "1"},
+        )
+
     sess: SessionState = session_state or InMemorySessionState()
 
     def _mcfg(
