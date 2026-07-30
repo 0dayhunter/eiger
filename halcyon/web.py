@@ -13,7 +13,8 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic import BaseModel
 
 from halcyon import (
-    agent, bank_fixtures, capstone, dispute_pipeline, guards, halo, kb_fixtures, m4_answers, rag,
+    agent, bank_fixtures, capstone, dispute_pipeline, guards, halo, kb_fixtures, learn_content,
+    m4_answers, rag,
 )
 from halcyon.bank import Bank
 from halcyon.config import MODULE_FLAGS, Settings, effective_settings
@@ -277,6 +278,7 @@ def create_app(
             display_name_html=guards.encode_output(name, eff),
             nonce=request.state.csp_nonce,
             mode=settings.mode,
+            learn=learn_content.LEARN,
         )
 
     from fastapi.responses import Response

@@ -377,3 +377,12 @@ def test_db_error_returns_503_not_500():
     r = client.get("/board")
     assert r.status_code == 503
     assert "retry" in r.text.lower()
+
+
+def test_l1_learn_panel_renders():
+    client, _ = make_client({"HALCYON_MODE": "vulnerable"}, "hi")
+    text = client.get("/chat", params={"session": "p1"}).text
+    assert '<details class="learn">' in text
+    assert "How this works — L1 · RAG" in text
+    assert "SEC_RAG_PROVENANCE" in text        # the guard snippet rendered
+    assert "<pre><code>" in text

@@ -1,5 +1,20 @@
 <!doctype html>
 <title>Eiger — Iggy</title>
+{% macro learn_details(entry) %}
+<details class="learn">
+  <summary>📖 How this works — {{ entry.title }}</summary>
+  <div class="learn-body">
+    {% for para in entry.primer.split('\n\n') %}<p>{{ para }}</p>{% endfor %}
+    {% for s in entry.snippets %}
+    <div class="snippet {{ s.kind }}">
+      <div class="snip-head"><span class="tag">{{ s.kind }}</span>{{ s.title }} · <code>{{ s.source }}</code></div>
+      <pre><code>{{ s.code }}</code></pre>
+      <ul class="notes">{% for n in s.notes %}<li>{{ n }}</li>{% endfor %}</ul>
+    </div>
+    {% endfor %}
+  </div>
+</details>
+{% endmacro %}
 <style>
   :root {
     --bg: #0b1220; --surface: #121b2d; --surface-2: #1a2437; --line: #26324a;
@@ -108,6 +123,20 @@
     border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text); }
   .welcome-card button { width: 100%; padding: .7rem; font: inherit; font-weight: 600; cursor: pointer;
     border: 1px solid var(--accent); border-radius: 10px; background: var(--accent); color: var(--accent-ink); }
+  details.learn { margin: 0 0 1rem; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); }
+  details.learn > summary { cursor: pointer; padding: .7rem .9rem; font-weight: 600; color: var(--accent-2); }
+  details.learn .learn-body { padding: .2rem 1rem 1rem; }
+  details.learn .learn-body p { color: var(--text); font-size: .9rem; line-height: 1.5; }
+  .snippet { margin: .9rem 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .snippet .snip-head { font-size: .8rem; padding: .4rem .6rem; background: var(--surface-2); color: var(--muted); }
+  .snippet .snip-head .tag { font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin-right: .4rem; }
+  .snippet.vulnerable .snip-head .tag { color: #fb7185; }
+  .snippet.guard .snip-head .tag { color: var(--accent); }
+  .snippet pre { margin: 0; padding: .7rem .8rem; overflow-x: auto; background: var(--bg);
+    font-size: .8rem; line-height: 1.4; }
+  .snippet .notes { margin: .5rem 0 .7rem 1.1rem; color: var(--muted); font-size: .84rem; }
+  .snippet .notes li { margin: .2rem 0; }
 </style>
 
 <div id="cfg" data-encoding="{{ output_encoding }}" data-mode="{{ mode }}"></div>
@@ -155,7 +184,7 @@
   <aside id="sidebar"></aside>
   <main id="panels">
 
-    <section data-layer="L0">
+    <section data-layer="L0">{% if learn.get('L0') %}{{ learn_details(learn['L0']) }}{% endif %}
       <h2>L0 — Chatbot (M1 prompt injection · M2 output handling)</h2>
       <div id="greeting">Welcome, <span id="dn">{{ display_name_html | safe }}</span></div>
       <div class="row">
@@ -171,7 +200,7 @@
       </form>
     </section>
 
-    <section data-layer="L1" hidden>
+    <section data-layer="L1" hidden>{% if learn.get('L1') %}{{ learn_details(learn['L1']) }}{% endif %}
       <h2>L1 — RAG (M3 knowledge-base poisoning)</h2>
       <p>Goal: poison the community KB so Iggy's answer contains <code>RAG-OWNED-7788</code>.</p>
       <textarea id="kbtext" rows="4" placeholder="Submit a note to the community KB…"></textarea>
@@ -186,7 +215,7 @@
       <div id="ragout" class="out"></div>
     </section>
 
-    <section data-layer="L2" hidden>
+    <section data-layer="L2" hidden>{% if learn.get('L2') %}{{ learn_details(learn['L2']) }}{% endif %}
       <h2>L2 — Agent (M4 supply-chain · M5 tool misuse)</h2>
       <h3>M4 — Supply-chain audit</h3>
       <p>Audit <code>labs/m4/</code>. Run
@@ -216,7 +245,7 @@
       <div id="m5out" class="out"></div>
     </section>
 
-    <section data-layer="L3" hidden>
+    <section data-layer="L3" hidden>{% if learn.get('L3') %}{{ learn_details(learn['L3']) }}{% endif %}
       <h2>L3 — MCP (M6 tool-description poisoning · token scope)</h2>
       <p>Iggy calls the core-banking and CRM tools over MCP servers.</p>
       <div class="row">
@@ -231,7 +260,7 @@
       </details>
     </section>
 
-    <section data-layer="L4" hidden>
+    <section data-layer="L4" hidden>{% if learn.get('L4') %}{{ learn_details(learn['L4']) }}{% endif %}
       <h2>L4 — Multi-agent (M7 inter-agent trust)</h2>
       <p>File a dispute; the triage and adjudicator agents exchange signed messages.</p>
       <div class="row"><input id="dacct" type="text" placeholder="Account (e.g. acct-me)" /></div>
@@ -241,7 +270,7 @@
       <div id="dout" class="out"></div>
     </section>
 
-    <section data-layer="L5" hidden>
+    <section data-layer="L5" hidden>{% if learn.get('L5') %}{{ learn_details(learn['L5']) }}{% endif %}
       <h2>L5 — Production (M8 guardrails / prompt firewall)</h2>
       <p>Chat through the guardrail stack. Flip M8 to L2 to arm the input/output filters.</p>
       <div class="row">
