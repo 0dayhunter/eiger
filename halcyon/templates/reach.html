@@ -1,16 +1,39 @@
 <!doctype html>
-<title>Halcyon — reach-test</title>
+<title>Eiger — reach-test</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 3rem auto; }
-  .pill { display: inline-block; padding: .2rem .6rem; border-radius: 1rem; color: #fff; }
-  .up { background: #1a7f37; } .down { background: #b42318; }
+  :root { --bg:#0b1220; --surface:#121b2d; --line:#26324a; --text:#e6ecf5; --muted:#8ea3c0;
+          --accent:#38bdf8; --ok:#34d399; --bad:#fb7185; }
+  * { box-sizing:border-box; }
+  body { font-family: system-ui, sans-serif; margin:0; min-height:100vh; color:var(--text);
+         background: radial-gradient(1000px 500px at 50% -10%, #14304a 0%, var(--bg) 60%);
+         display:flex; align-items:center; justify-content:center; padding:1.5rem; }
+  .card { width:100%; max-width:520px; background:var(--surface); border:1px solid var(--line);
+          border-radius:16px; padding:1.8rem 2rem; }
+  .brand { display:inline-flex; align-items:center; gap:.5rem; font-weight:700; font-size:1.2rem; }
+  h1 { font-size:1.25rem; margin:.8rem 0 .2rem; }
+  p { color:var(--muted); }
+  ul { list-style:none; padding:0; margin:1.2rem 0; }
+  li { display:flex; justify-content:space-between; padding:.5rem 0; border-bottom:1px solid var(--line); }
+  .pill { display:inline-block; padding:.15rem .7rem; border-radius:999px; font-size:.82rem; font-weight:600; }
+  .up { background:var(--ok); color:#04121e; } .down { background:var(--bad); color:#2a0810; }
+  a.enter { display:inline-block; margin-top:.8rem; padding:.6rem 1.1rem; border-radius:10px;
+            background:var(--accent); color:#041018; font-weight:600; text-decoration:none; }
 </style>
-<h1>Halcyon reach-test</h1>
-<p>Screen 1 — confirm you can reach the lab before you start.</p>
-<ul>
-  <li>App: <span class="pill up">up</span></li>
-  <li>Ollama: <span class="pill {{ 'up' if ollama else 'down' }}">{{ 'up' if ollama else 'down' }}</span></li>
-  <li>Store: <span class="pill {{ 'up' if db else 'down' }}">{{ 'up' if db else 'down' }}</span></li>
-</ul>
-<p>Mode: <strong>{{ mode }}</strong></p>
-<p><a href="/chat">Enter the lab →</a></p>
+<div class="card">
+  <span class="brand">
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M2 21 L9 6 L13 14 L16 8.5 L22 21 Z" fill="var(--accent)"/>
+      <path d="M9 6 L11.2 10 L7.4 11.6 Z" fill="#eaf6ff" opacity=".9"/>
+    </svg>
+    Eiger
+  </span>
+  <h1>reach-test</h1>
+  <p>Screen 1 — confirm you can reach the lab before you start.</p>
+  <ul>
+    <li><span>App</span> <span class="pill up">up</span></li>
+    <li><span>Ollama</span> <span class="pill {{ 'up' if ollama else 'down' }}">{{ 'up' if ollama else 'down' }}</span></li>
+    <li><span>Store</span> <span class="pill {{ 'up' if db else 'down' }}">{{ 'up' if db else 'down' }}</span></li>
+  </ul>
+  <p>Mode: <strong>{{ mode }}</strong></p>
+  <p><a class="enter" href="/chat">Enter the lab →</a></p>
+</div>
