@@ -95,9 +95,37 @@
   details#inspector-hint { margin-top: 1rem; font-size: .88rem; color: var(--muted); }
   details#inspector-hint pre { background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
     padding: .6rem; overflow-x: auto; color: var(--accent-2); }
+  #welcome { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center;
+    justify-content: center; padding: 1.5rem;
+    background: radial-gradient(1200px 600px at 50% -10%, #14304a 0%, var(--bg) 60%); }
+  #welcome[hidden] { display: none; }
+  .welcome-card { max-width: 30rem; text-align: center; }
+  .welcome-card .peak { margin: 0 auto .8rem; display: block; }
+  .welcome-card h1 { font-size: 1.9rem; margin: .2rem 0; letter-spacing: .01em; }
+  .welcome-card .tag { color: var(--accent-2); font-weight: 600; margin: 0 0 .4rem; }
+  .welcome-card .frame { color: var(--muted); font-size: .92rem; margin: 0 0 1.3rem; }
+  .welcome-card input { width: 100%; padding: .65rem .75rem; font: inherit; margin-bottom: .7rem;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text); }
+  .welcome-card button { width: 100%; padding: .7rem; font: inherit; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--accent); border-radius: 10px; background: var(--accent); color: var(--accent-ink); }
 </style>
 
 <div id="cfg" data-encoding="{{ output_encoding }}" data-mode="{{ mode }}"></div>
+
+<div id="welcome" hidden>
+  <div class="welcome-card">
+    <svg class="peak" width="72" height="72" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M2 21 L9 6 L13 14 L16 8.5 L22 21 Z" fill="var(--accent)"/>
+      <path d="M9 6 L11.2 10 L7.4 11.6 Z" fill="#eaf6ff" opacity=".9"/>
+    </svg>
+    <p class="tag">Welcome to Eiger</p>
+    <h1>Meet Iggy</h1>
+    <p class="frame">Your Eiger banking assistant. This is a deliberately vulnerable
+      teaching lab — explore each layer, then try to break it.</p>
+    <input id="welcome-name" type="text" placeholder="Your display name (optional)" autocomplete="off" />
+    <button id="welcome-enter" type="button">Enter the lab</button>
+  </div>
+</div>
 
 <header id="topbar">
   <span class="brand">
@@ -488,6 +516,26 @@
       gout.textContent = data.reply ?? ("error: " + JSON.stringify(data));
     } catch (err) { gout.textContent = "request failed — " + err; }
   };
+
+  // ---- welcome overlay ----
+  const welcome = document.getElementById("welcome");
+  const welcomeKey = "eiger_welcomed_" + sid;
+  if (!localStorage.getItem(welcomeKey)) welcome.hidden = false;   // first run this session
+  document.getElementById("welcome-enter").onclick = async () => {
+    const name = document.getElementById("welcome-name").value.trim();
+    localStorage.setItem(welcomeKey, "1");
+    if (name) {
+      // persist the display name, then reload so the server re-renders the greeting sink
+      await fetch("/api/profile", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sid, display_name: name }),
+      });
+      location.reload();
+      return;
+    }
+    welcome.hidden = true;
+  };
+  document.querySelector("#topbar .brand").onclick = () => { welcome.hidden = false; };
 
   // ---- bootstrap ----
   (async () => {

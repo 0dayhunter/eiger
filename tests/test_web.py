@@ -286,3 +286,12 @@ def test_app_is_rebranded_to_eiger_iggy():
     assert guards.HONEYTOKEN in guards.SYSTEM_WITH_TOKEN  # grading intact
     # the M1 canary mechanic is deliberately untouched
     assert guards.OVERRIDE_MARKER == "HALO-ACT-OVERRIDE"
+
+
+def test_chat_page_has_welcome_hero():
+    client, _ = make_client({"HALCYON_MODE": "vulnerable"}, "hi")
+    text = client.get("/chat", params={"session": "p1"}).text
+    assert 'id="welcome"' in text          # the overlay exists
+    assert 'id="welcome-enter"' in text     # the Enter button exists
+    assert 'id="welcome-name"' in text      # optional display-name field
+    assert "Meet Iggy" in text              # branded hero copy
