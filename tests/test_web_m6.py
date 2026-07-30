@@ -25,7 +25,8 @@ def m6_client():
         bank, vault, crm_fixtures.SEED, store, settings, sid
     )
     app = create_app(
-        store, settings, lambda provider, model, api_key: StubLLM(""), kb, bank,
+        store, settings, lambda provider, model, api_key: StubLLM(""),
+        lambda sid: kb, lambda sid: bank,
         tool_llm_factory, mcp_host_factory,
     )
     return TestClient(app)
@@ -60,7 +61,8 @@ def test_m6_level_flip_is_per_session_no_restart():
         bank, vault, crm_fixtures.SEED, store, s or settings, sid
     )
     app = create_app(
-        store, settings, lambda p, m, k: StubLLM(""), kb, bank,
+        store, settings, lambda p, m, k: StubLLM(""),
+        lambda sid: kb, lambda sid: bank,
         tool_llm_factory, mcp_host_factory,
     )
     client = TestClient(app)
@@ -90,7 +92,8 @@ def test_health_reports_mcp_key(monkeypatch):
         bank, vault, crm_fixtures.SEED, store, settings, sid
     )
     app = create_app(
-        store, settings, lambda provider, model, api_key: StubLLM(""), kb, bank,
+        store, settings, lambda provider, model, api_key: StubLLM(""),
+        lambda sid: kb, lambda sid: bank,
         tool_llm_factory, mcp_host_factory,
     )
     client = TestClient(app)

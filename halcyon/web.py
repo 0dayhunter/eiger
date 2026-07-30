@@ -111,13 +111,30 @@ def create_app(
     store: Store,
     settings: Settings,
     llm_factory: LLMFactory,
-    kb: KnowledgeBase,
-    bank: Bank,
+    kb_for: Callable[[str], KnowledgeBase],
+    bank_for: Callable[[str], Bank],
     tool_llm_factory: ToolLLMFactory,
     mcp_host_factory: MCPHostFactory,
     session_state: SessionState | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="Halcyon")
+    if settings.expose_openapi:
+        app = FastAPI(title="Eiger")
+    else:
+        app = FastAPI(title="Eiger", openapi_url=None, docs_url=None, redoc_url=None)
+
+    import psycopg
+    import psycopg_pool
+    from fastapi.responses import JSONResponse
+
+    @app.exception_handler(psycopg.OperationalError)
+    @app.exception_handler(psycopg_pool.PoolTimeout)
+    async def _db_busy(_request, _exc):  # type: ignore[no-untyped-def]
+        return JSONResponse(
+            status_code=503,
+            content={"error": "database busy, please retry"},
+            headers={"Retry-After": "1"},
+        )
+
     sess: SessionState = session_state or InMemorySessionState()
 
     def _mcfg(
@@ -220,27 +237,25 @@ def create_app(
         if module in ("m1", "m2"):
             sess.clear_history(body.session_id, "chat")
         if module == "m3":
+            kb = kb_for(body.session_id)
             kb.clear()
             kb.seed(kb_fixtures.SEED)
-        if module == "m5":
-            bank.clear()
-            bank.seed(bank_fixtures.seed_for(body.session_id))
-        if module == "m6":
-            bank.clear()
-            bank.seed(bank_fixtures.seed_for(body.session_id))
-        if module == "m7":
+        if module in ("m5", "m6", "m7"):
+            bank = bank_for(body.session_id)
             bank.clear()
             bank.seed(bank_fixtures.seed_for(body.session_id))
         return {"status": "reset", "module": module}
 
     @app.post("/api/kb")
     def add_kb(body: KbIn) -> dict:
+        kb = kb_for(body.session_id)
         kb.add(body.text, "user", owner_session=body.session_id)
         return {"status": "ok"}
 
     @app.post("/api/ask")
     def ask(body: AskIn) -> dict:
         eff = effective_settings(settings, sess, body.session_id, "m3")
+        kb = kb_for(body.session_id)
         reply, _ = rag.answer(
             kb, llm_factory(*_mcfg(body.session_id)), store, eff, body.session_id, body.query
         )
@@ -286,6 +301,7 @@ def create_app(
     def agent_endpoint(body: AgentIn) -> dict:
         tool_llm = tool_llm_factory(*_mcfg(body.session_id, body.provider, body.model, body.api_key))
         eff = effective_settings(settings, sess, body.session_id, "m5")
+        bank = bank_for(body.session_id)
         reply, calls = agent.run(tool_llm, body.session_id, body.message, bank, store, eff)
         return {"reply": reply, "tool_calls": [{"name": n, "args": a} for n, a, _ in calls]}
 
@@ -306,6 +322,7 @@ def create_app(
     def dispute_endpoint(body: DisputeIn) -> dict:
         tool_llm = tool_llm_factory(*_mcfg(body.session_id, body.provider, body.model, body.api_key))
         eff = effective_settings(settings, sess, body.session_id, "m7")
+        bank = bank_for(body.session_id)
         decision, transcript = dispute_pipeline.run_dispute(
             tool_llm, body.session_id,
             {"account": body.account, "amount": body.amount, "dispute_text": body.dispute_text},
@@ -355,6 +372,40 @@ def create_app(
         cfg = sess.get_model_cfg(session)
         # never return the api_key
         return {"provider": cfg.get("provider", ""), "model": cfg.get("model", "")}
+
+    import io
+    import zipfile
+
+    _LABS_M4 = Path(__file__).parent.parent / "labs" / "m4"
+
+    # This is plain text shown to the participant, not code that loads pickle data —
+    # it warns them NOT to unpickle the bundled artifact and to scan/hash it instead.
+    _M4_README = (
+        "# M4 supply-chain audit bundle\n\n"
+        "1. SCAN the artifact — do NOT run/unpickle it:\n"
+        "   python scan_artifact.py artifacts/<file>\n"
+        "   (no Python? hash it: shasum -a 256 artifacts/<file>)\n"
+        "   Submit the poisoned artifact's sha256 as the malicious artifact.\n\n"
+        "2. Read requirements-vulnerable.txt and submit the vulnerable pin "
+        "(name==version) as the vulnerable dependency.\n\n"
+        "WARNING: the artifact is a real malicious pickle. Scan or hash it only; "
+        "loading it with pickle.load executes attacker code on your machine.\n"
+    )
+
+    @app.get("/api/m4/bundle")
+    def m4_bundle() -> Response:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            for art in sorted((_LABS_M4 / "artifacts").glob("*")):
+                if art.is_file():
+                    z.write(art, f"artifacts/{art.name}")
+            req = _LABS_M4 / "requirements-vulnerable.txt"
+            if req.exists():
+                z.write(req, "requirements-vulnerable.txt")
+            z.write(Path(__file__).parent / "scan_artifact.py", "scan_artifact.py")
+            z.writestr("README.md", _M4_README)
+        return Response(content=buf.getvalue(), media_type="application/zip",
+                        headers={"Content-Disposition": "attachment; filename=eiger-m4-audit.zip"})
 
     @app.post("/submit/m4")
     def submit_m4(body: SubmitIn) -> dict:

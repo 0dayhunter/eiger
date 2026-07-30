@@ -1,7 +1,9 @@
 import json
+import os
 from pathlib import Path
 
 import psycopg
+from psycopg_pool import ConnectionPool
 
 from halcyon.store import MODULE_RESET, Event
 
@@ -15,22 +17,24 @@ def init_schema(dsn: str) -> None:
 
 
 class PostgresStore:
-    def __init__(self, dsn: str) -> None:
+    def __init__(self, dsn: str, max_size: int | None = None) -> None:
         self._dsn = dsn
+        size = max_size if max_size is not None else int(os.environ.get("EIGER_DB_POOL_MAX", "10"))
+        # open=True: establish min connections now; check_timeout keeps a hung conn from wedging.
+        self._pool = ConnectionPool(dsn, min_size=1, max_size=size, open=True, timeout=10.0)
 
     def append_event(
         self, session_id: str, module: str, event_type: str, actor: str, details: dict
     ) -> None:
-        with psycopg.connect(self._dsn) as conn:
+        with self._pool.connection() as conn:
             conn.execute(
                 "INSERT INTO audit_log (session_id, module, event_type, actor, details) "
                 "VALUES (%s, %s, %s, %s, %s)",
                 (session_id, module, event_type, actor, json.dumps(details or {})),
             )
-            conn.commit()
 
     def events_since_reset(self, session_id: str, module: str) -> list[Event]:
-        with psycopg.connect(self._dsn) as conn:
+        with self._pool.connection() as conn:
             row = conn.execute(
                 "SELECT COALESCE(MAX(id), 0) FROM audit_log "
                 "WHERE session_id=%s AND module=%s AND event_type=%s",
@@ -49,7 +53,7 @@ class PostgresStore:
         self.append_event(session_id, module, MODULE_RESET, session_id, {})
 
     def get_progress(self, session_id: str, module: str) -> tuple[bool, bool]:
-        with psycopg.connect(self._dsn) as conn:
+        with self._pool.connection() as conn:
             row = conn.execute(
                 "SELECT core, stretch FROM progress WHERE session_id=%s AND module=%s",
                 (session_id, module),
@@ -59,7 +63,7 @@ class PostgresStore:
     def upsert_progress(
         self, session_id: str, module: str, core: bool, stretch: bool
     ) -> None:
-        with psycopg.connect(self._dsn) as conn:
+        with self._pool.connection() as conn:
             conn.execute(
                 "INSERT INTO progress (session_id, module, core, stretch, updated_at) "
                 "VALUES (%s, %s, %s, %s, now()) "
@@ -67,26 +71,24 @@ class PostgresStore:
                 "core=EXCLUDED.core, stretch=EXCLUDED.stretch, updated_at=now()",
                 (session_id, module, core, stretch),
             )
-            conn.commit()
 
     def set_profile(self, session_id: str, display_name: str) -> None:
-        with psycopg.connect(self._dsn) as conn:
+        with self._pool.connection() as conn:
             conn.execute(
                 "INSERT INTO profile (session_id, display_name) VALUES (%s, %s) "
                 "ON CONFLICT (session_id) DO UPDATE SET display_name=EXCLUDED.display_name",
                 (session_id, display_name),
             )
-            conn.commit()
 
     def get_profile(self, session_id: str) -> str:
-        with psycopg.connect(self._dsn) as conn:
+        with self._pool.connection() as conn:
             row = conn.execute(
                 "SELECT display_name FROM profile WHERE session_id=%s", (session_id,)
             ).fetchone()
         return row[0] if row else ""
 
     def list_sessions(self) -> list[str]:
-        with psycopg.connect(self._dsn) as conn:
+        with self._pool.connection() as conn:
             rows = conn.execute(
                 "SELECT DISTINCT session_id FROM audit_log ORDER BY session_id"
             ).fetchall()
@@ -94,7 +96,7 @@ class PostgresStore:
 
     def ping(self) -> bool:
         try:
-            with psycopg.connect(self._dsn, connect_timeout=3) as conn:
+            with self._pool.connection() as conn:
                 conn.execute("SELECT 1")
             return True
         except psycopg.Error:

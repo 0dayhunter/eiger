@@ -23,7 +23,8 @@ def make_client(env, reply):
         bank, vault, crm_fixtures.SEED, store, settings, sid
     )
     app = create_app(
-        store, settings, lambda provider, model, api_key: StubLLM(reply), kb, bank,
+        store, settings, lambda provider, model, api_key: StubLLM(reply),
+        lambda sid: kb, lambda sid: bank,
         tool_llm_factory, mcp_host_factory,
     )
     return TestClient(app), store
@@ -41,7 +42,8 @@ def make_client_kb(env, reply):
         bank, vault, crm_fixtures.SEED, store, settings, sid
     )
     app = create_app(
-        store, settings, lambda provider, model, api_key: StubLLM(reply), kb, bank,
+        store, settings, lambda provider, model, api_key: StubLLM(reply),
+        lambda sid: kb, lambda sid: bank,
         tool_llm_factory, mcp_host_factory,
     )
     return TestClient(app), store, kb
@@ -60,7 +62,8 @@ def make_client_agent(env, script):
         bank, vault, crm_fixtures.SEED, store, settings, sid
     )
     app = create_app(
-        store, settings, lambda provider, model, api_key: StubLLM(""), kb, bank,
+        store, settings, lambda provider, model, api_key: StubLLM(""),
+        lambda sid: kb, lambda sid: bank,
         tool_llm_factory, mcp_host_factory,
     )
     return TestClient(app), store, bank
@@ -162,7 +165,8 @@ def test_progress_survives_new_app_same_store():
         bank, vault, crm_fixtures.SEED, store, settings, sid
     )
     app1 = create_app(
-        store, settings, lambda p, m, k: StubLLM(reply), kb, bank,
+        store, settings, lambda p, m, k: StubLLM(reply),
+        lambda sid: kb, lambda sid: bank,
         tool_llm_factory, mcp_host_factory,
     )
     c1 = TestClient(app1)
@@ -170,7 +174,8 @@ def test_progress_survives_new_app_same_store():
     c1.get("/validate/m1", params={"session": "p1"})
     # simulate redeploy: brand new app object, same external store
     app2 = create_app(
-        store, settings, lambda p, m, k: StubLLM(reply), kb, bank,
+        store, settings, lambda p, m, k: StubLLM(reply),
+        lambda sid: kb, lambda sid: bank,
         tool_llm_factory, mcp_host_factory,
     )
     c2 = TestClient(app2)
@@ -241,6 +246,21 @@ def test_m4_submit_wrong_is_not_credited():
     assert client.get("/validate/m4", params={"session": "p2"}).json()["core"] == "fail"
 
 
+def test_m4_bundle_download():
+    import io
+    import zipfile
+
+    client, _ = make_client({"HALCYON_MODE": "vulnerable"}, "hi")
+    r = client.get("/api/m4/bundle")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/zip"
+    names = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
+    assert any(n.endswith("scan_artifact.py") for n in names)
+    assert any("requirements-vulnerable.txt" in n for n in names)
+    assert any(n.endswith("README.md") for n in names)
+    assert any(n.endswith(".pkl") or "artifact" in n for n in names)  # the poisoned artifact
+
+
 def test_chat_page_has_m4_panel():
     client, _ = make_client({"HALCYON_MODE": "vulnerable"}, "hi")
     body = client.get("/chat", params={"session": "p1"}).text
@@ -304,3 +324,50 @@ def test_chat_page_has_welcome_hero():
     assert 'id="welcome-enter"' in text     # the Enter button exists
     assert 'id="welcome-name"' in text      # optional display-name field
     assert "Meet Iggy" in text              # branded hero copy
+
+
+def test_openapi_hidden_by_default_exposed_when_flagged():
+    default, _ = make_client({"HALCYON_MODE": "vulnerable"}, "hi")
+    assert default.get("/openapi.json").status_code == 404
+    assert default.get("/docs").status_code == 404
+    exposed, _ = make_client({"HALCYON_MODE": "vulnerable", "EIGER_EXPOSE_OPENAPI": "1"}, "hi")
+    assert exposed.get("/openapi.json").status_code == 200
+
+
+def test_reset_and_kb_are_session_isolated():
+    from halcyon import bank_fixtures, crm_fixtures, kb_fixtures
+    from halcyon.kb import InMemoryKB
+    from halcyon.session_resources import BankProvider, KBProvider
+    settings = load_settings({"HALCYON_MODE": "vulnerable"})
+    store = InMemoryStore()
+    vault = TokenVault({SERVER_CORE: "c", SERVER_CRM: "d"})
+    bank_for = BankProvider(bank_fixtures.seed_for)
+    kb_for = KBProvider(lambda sid: InMemoryKB(), kb_fixtures.SEED)
+    tool_llm_factory = lambda p, m, k: StubToolLLM([FinalAnswer("ok")])  # noqa: E731
+    mcp_host_factory = lambda sid, s: in_memory_host(  # noqa: E731
+        bank_for(sid), vault, crm_fixtures.SEED, store, s, sid)
+    app = create_app(store, settings, lambda p, m, k: StubLLM(""),
+                     kb_for, bank_for, tool_llm_factory, mcp_host_factory)
+    client = TestClient(app)
+    # A poisons the KB; B must not retrieve it
+    client.post("/api/kb", json={"session_id": "A", "text": "PWNED-M3 secret note"})
+    rb = client.post("/api/ask", json={"session_id": "B", "query": "secret note"}).json()
+    assert "PWNED-M3" not in rb.get("reply", "")
+    # A resets m5; B's bank is untouched (B still owns its own acct-me)
+    client.post("/reset/m5", json={"session_id": "A"})
+    assert bank_for("B").owns("B", "acct-me")
+
+
+def test_db_error_returns_503_not_500():
+    import psycopg
+    from tests.test_web import make_client  # reuse helper if needed
+    # a store whose read raises the DB error the pool surfaces under exhaustion
+    client, store = make_client({"HALCYON_MODE": "vulnerable"}, "hi")
+
+    def boom(*a, **k):
+        raise psycopg.OperationalError("connection pool exhausted")
+
+    store.list_sessions = boom  # /board calls list_sessions
+    r = client.get("/board")
+    assert r.status_code == 503
+    assert "retry" in r.text.lower()
