@@ -18,10 +18,13 @@ LEARN: dict[str, dict] = {
             "operator token sits inside the same text block as the rest of the system prompt, "
             "with no role separation — a message that asks the assistant to repeat or reveal "
             "everything it was told upstream can pull the secret out along with the rest of the "
-            "prompt. Second, whatever the assistant replies gets written straight into the page "
-            "without being escaped, so if that text contains markup, the browser renders it: a "
-            "reply an attacker can influence becomes a reply an attacker can execute — a classic "
-            "stored cross-site-scripting flaw."
+            "prompt. Second, the assistant's reply itself is rendered client-side as inert text — "
+            "the real exposure is the profile display name: it's stored server-side, passed "
+            "through an encoding function before being dropped into the page's greeting, and that "
+            "greeting is rendered with Jinja autoescaping explicitly switched off. If the flag "
+            "guarding that encoding function is off, whatever markup a participant sets as their "
+            "display name goes into the page unmodified and the browser renders it — a classic "
+            "stored cross-site-scripting flaw, driven by a profile field rather than the chat reply."
         ),
         "snippets": [
             {
@@ -43,7 +46,7 @@ LEARN: dict[str, dict] = {
                 ],
             },
             {
-                "title": "Vulnerable: reply text passed straight to the page",
+                "title": "Vulnerable: the display name only gets escaped if the flag is already on",
                 "kind": "vulnerable",
                 "source": "halcyon/guards.py",
                 "code": (
@@ -53,10 +56,12 @@ LEARN: dict[str, dict] = {
                     "    return text"
                 ),
                 "notes": [
-                    "Every reply (and any user-supplied text rendered alongside it) passes through this function before hitting the page.",
-                    "With the flag off, the `return text` branch runs: the string goes out completely unmodified.",
-                    "No HTML entities are escaped, so markup characters in the text are interpreted as markup by the browser.",
-                    "This is what turns attacker-influenced text into attacker-controlled page behaviour.",
+                    "The vector here is the profile display name, not the chat reply: `chat_page` in `halcyon/web.py` calls "
+                    "`guards.encode_output(name, eff)` where `name` is whatever a participant last set via `POST /api/profile`.",
+                    "The result is rendered into the greeting in `chat.html` as `{{ display_name_html | safe }}` — the `| safe` "
+                    "filter tells Jinja to skip its own autoescaping entirely, so this function is the only thing standing between the stored name and the page.",
+                    "Both branches are shown here on purpose: with `SEC_OUTPUT_ENCODING` on, `html.escape(text)` runs and neutralises markup; with it off (vulnerable profile), execution falls through to the last line and the name is returned completely unmodified.",
+                    "So a display name containing markup is inert when the flag is on, and rendered as real HTML by the browser when it's off — the chat reply itself is written to the DOM as text and never reaches this exposure.",
                 ],
             },
             {
