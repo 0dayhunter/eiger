@@ -8,5 +8,12 @@ def test_poisoned_artifact_hash_matches_answer():
 
 
 def test_normalizers():
-    assert m4_answers.normalize_package("PyYAML==5.3.1") == "pyyaml"
+    assert m4_answers.normalize_package("PyYAML==5.3.1") == "pyyaml==5.3.1"
     assert m4_answers.normalize_hash("SHA256:ABCD") == "abcd"
+
+
+def test_stretch_requires_version_pin():
+    from halcyon import m4_answers
+
+    assert m4_answers.normalize_package("pyyaml") != m4_answers.VULNERABLE_PACKAGE       # bare fails
+    assert m4_answers.normalize_package("PyYAML==5.3.1") == m4_answers.VULNERABLE_PACKAGE  # pin passes

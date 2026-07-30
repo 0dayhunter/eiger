@@ -373,6 +373,40 @@ def create_app(
         # never return the api_key
         return {"provider": cfg.get("provider", ""), "model": cfg.get("model", "")}
 
+    import io
+    import zipfile
+
+    _LABS_M4 = Path(__file__).parent.parent / "labs" / "m4"
+
+    # This is plain text shown to the participant, not code that loads pickle data —
+    # it warns them NOT to unpickle the bundled artifact and to scan/hash it instead.
+    _M4_README = (
+        "# M4 supply-chain audit bundle\n\n"
+        "1. SCAN the artifact — do NOT run/unpickle it:\n"
+        "   python scan_artifact.py artifacts/<file>\n"
+        "   (no Python? hash it: shasum -a 256 artifacts/<file>)\n"
+        "   Submit the poisoned artifact's sha256 as the malicious artifact.\n\n"
+        "2. Read requirements-vulnerable.txt and submit the vulnerable pin "
+        "(name==version) as the vulnerable dependency.\n\n"
+        "WARNING: the artifact is a real malicious pickle. Scan or hash it only; "
+        "loading it with pickle.load executes attacker code on your machine.\n"
+    )
+
+    @app.get("/api/m4/bundle")
+    def m4_bundle() -> Response:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            for art in sorted((_LABS_M4 / "artifacts").glob("*")):
+                if art.is_file():
+                    z.write(art, f"artifacts/{art.name}")
+            req = _LABS_M4 / "requirements-vulnerable.txt"
+            if req.exists():
+                z.write(req, "requirements-vulnerable.txt")
+            z.write(Path(__file__).parent / "scan_artifact.py", "scan_artifact.py")
+            z.writestr("README.md", _M4_README)
+        return Response(content=buf.getvalue(), media_type="application/zip",
+                        headers={"Content-Disposition": "attachment; filename=eiger-m4-audit.zip"})
+
     @app.post("/submit/m4")
     def submit_m4(body: SubmitIn) -> dict:
         correct = False

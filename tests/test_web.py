@@ -241,6 +241,21 @@ def test_m4_submit_wrong_is_not_credited():
     assert client.get("/validate/m4", params={"session": "p2"}).json()["core"] == "fail"
 
 
+def test_m4_bundle_download():
+    import io
+    import zipfile
+
+    client, _ = make_client({"HALCYON_MODE": "vulnerable"}, "hi")
+    r = client.get("/api/m4/bundle")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/zip"
+    names = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
+    assert any(n.endswith("scan_artifact.py") for n in names)
+    assert any("requirements-vulnerable.txt" in n for n in names)
+    assert any(n.endswith("README.md") for n in names)
+    assert any(n.endswith(".pkl") or "artifact" in n for n in names)  # the poisoned artifact
+
+
 def test_chat_page_has_m4_panel():
     client, _ = make_client({"HALCYON_MODE": "vulnerable"}, "hi")
     body = client.get("/chat", params={"session": "p1"}).text
