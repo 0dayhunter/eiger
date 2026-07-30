@@ -11,7 +11,9 @@ def test_core_needs_both_signals():
     assert m3.validate(s, "p1")["core"] == "pass"
 
 
-def test_stretch_on_restricted_retrieval():
+def test_stretch_requires_disclosure_not_just_retrieval():
     s = InMemoryStore()
     audit.record(s, "p1", "m3", audit.RESTRICTED_DOC_RETRIEVED, "p1")
+    assert m3.validate(s, "p1")["stretch"] == "fail"
+    audit.record(s, "p1", "m3", audit.RESTRICTED_DOC_DISCLOSED, "p1")
     assert m3.validate(s, "p1")["stretch"] == "pass"
