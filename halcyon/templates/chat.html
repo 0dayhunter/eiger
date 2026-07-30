@@ -1,76 +1,114 @@
 <!doctype html>
-<title>Halo — Halcyon Lab</title>
+<title>Eiger — Iggy</title>
 <style>
-  :root { --accent: #0b5cad; --line: #d7dbe0; --bg: #fafbfc; --muted: #6b7280; }
+  :root {
+    --bg: #0b1220; --surface: #121b2d; --surface-2: #1a2437; --line: #26324a;
+    --text: #e6ecf5; --muted: #8ea3c0;
+    --accent: #38bdf8; --accent-2: #6ee7ff; --accent-ink: #041018;
+    --ok: #34d399; --bad: #fb7185;
+    --l0: #38bdf8; --l1: #34d399; --l2: #f59e0b; --l3: #a78bfa; --l4: #f472b6; --l5: #fb7185;
+  }
   * { box-sizing: border-box; }
-  body { font-family: system-ui, sans-serif; margin: 0; color: #1a1d21; }
+  body { font-family: system-ui, sans-serif; margin: 0; color: var(--text); background: var(--bg); }
   header#topbar { display: flex; align-items: center; justify-content: space-between;
-    padding: .6rem 1rem; border-bottom: 1px solid var(--line); }
-  header#topbar .brand { font-weight: 600; }
-  header#topbar nav { display: flex; align-items: center; gap: 1rem; }
+    padding: .7rem 1.1rem; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%); }
+  header#topbar .brand { font-weight: 700; letter-spacing: .01em; display: inline-flex;
+    align-items: center; gap: .5rem; font-size: 1.05rem; }
+  header#topbar .brand svg { display: block; }
+  header#topbar nav { display: flex; align-items: center; gap: .9rem; }
   header#topbar a { color: var(--accent); text-decoration: none; font-size: .9rem; }
-  #model-btn { font: inherit; font-size: .85rem; padding: .35rem .7rem; cursor: pointer;
-    border: 1px solid var(--line); border-radius: 6px; background: #fff; }
-  nav#tabs { display: flex; gap: .25rem; padding: .5rem 1rem 0; border-bottom: 1px solid var(--line);
-    overflow-x: auto; }
-  nav#tabs .tab { font: inherit; font-size: .9rem; padding: .5rem .8rem; cursor: pointer;
-    border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; background: none;
-    color: var(--muted); white-space: nowrap; }
-  nav#tabs .tab.active { color: #1a1d21; border-color: var(--line); background: #fff;
-    margin-bottom: -1px; font-weight: 600; }
-  #body { display: flex; gap: 1rem; max-width: 960px; margin: 1rem auto; padding: 0 1rem; }
-  #sidebar { flex: 0 0 190px; border: 1px solid var(--line); border-radius: 8px; padding: .8rem;
-    height: fit-content; background: var(--bg); }
-  #sidebar h3 { margin: 0 0 .6rem; font-size: .8rem; text-transform: uppercase; color: var(--muted);
-    letter-spacing: .04em; }
-  .sb-row { display: flex; align-items: center; justify-content: space-between; margin: .4rem 0;
+  .iggy-chip { display: inline-flex; align-items: center; gap: .4rem; font-size: .85rem;
+    color: var(--muted); }
+  .iggy-chip .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--ok);
+    box-shadow: 0 0 8px var(--ok); }
+  #model-btn { font: inherit; font-size: .85rem; padding: .4rem .75rem; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--text); }
+  nav#tabs { display: flex; gap: .3rem; padding: .6rem 1.1rem 0; border-bottom: 1px solid var(--line);
+    overflow-x: auto; background: var(--bg); }
+  nav#tabs .tab { font: inherit; font-size: .9rem; padding: .55rem .85rem; cursor: pointer;
+    border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; background: none;
+    color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; gap: .45rem; }
+  nav#tabs .tab::before { content: ""; width: 9px; height: 9px; border-radius: 2px; background: currentColor;
+    opacity: .55; }
+  nav#tabs .tab[data-tab="L0"] { --hue: var(--l0); } nav#tabs .tab[data-tab="L1"] { --hue: var(--l1); }
+  nav#tabs .tab[data-tab="L2"] { --hue: var(--l2); } nav#tabs .tab[data-tab="L3"] { --hue: var(--l3); }
+  nav#tabs .tab[data-tab="L4"] { --hue: var(--l4); } nav#tabs .tab[data-tab="L5"] { --hue: var(--l5); }
+  nav#tabs .tab::before { background: var(--hue); }
+  nav#tabs .tab.active { color: var(--text); border-color: var(--line); background: var(--surface);
+    margin-bottom: -1px; font-weight: 600; box-shadow: inset 0 2px 0 var(--hue); }
+  #body { display: flex; gap: 1rem; max-width: 1000px; margin: 1.1rem auto; padding: 0 1.1rem; }
+  #sidebar { flex: 0 0 200px; border: 1px solid var(--line); border-radius: 12px; padding: .9rem;
+    height: fit-content; background: var(--surface); }
+  #sidebar h3 { margin: 0 0 .7rem; font-size: .72rem; text-transform: uppercase; color: var(--muted);
+    letter-spacing: .08em; }
+  .sb-row { display: flex; align-items: center; justify-content: space-between; margin: .5rem 0;
     font-size: .85rem; }
-  .level-toggle { font: inherit; font-size: .8rem; min-width: 2.4rem; padding: .2rem .5rem; cursor: pointer;
-    border: 1px solid var(--line); border-radius: 999px; background: #fff; }
-  .level-toggle[data-level="L2"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .level-toggle { font: inherit; font-size: .78rem; min-width: 2.4rem; padding: .22rem .55rem; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+  .level-toggle[data-level="L2"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+    box-shadow: 0 0 10px rgba(56,189,248,.35); }
   .level-toggle:disabled { opacity: .5; cursor: not-allowed; }
   #panels { flex: 1; min-width: 0; }
-  #panels section h2 { font-size: 1.05rem; margin: 0 0 .5rem; }
-  #panels section h3 { font-size: .95rem; margin: 1.2rem 0 .4rem; }
+  #panels section { background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 1.1rem 1.2rem; }
+  #panels section h2 { font-size: 1.1rem; margin: 0 0 .5rem; }
+  #panels section h3 { font-size: .95rem; margin: 1.2rem 0 .4rem; color: var(--accent-2); }
+  #panels section p { color: var(--muted); font-size: .9rem; }
+  #panels section code { background: var(--surface-2); padding: .1rem .35rem; border-radius: 5px; }
   .row { display: flex; gap: .5rem; margin: .5rem 0; flex-wrap: wrap; }
-  .row input, .row select, textarea { padding: .55rem .65rem; font: inherit; border: 1px solid #bbb;
-    border-radius: 6px; }
+  .row input, .row select, textarea { padding: .55rem .7rem; font: inherit; border: 1px solid var(--line);
+    border-radius: 8px; background: var(--surface-2); color: var(--text); }
+  .row input::placeholder, textarea::placeholder { color: var(--muted); }
   .row input[type=text], .row input:not([type]) { flex: 1; min-width: 12rem; }
   textarea { width: 100%; font-family: inherit; }
   button { font: inherit; }
-  .row button { padding: .55rem 1rem; cursor: pointer; border: 1px solid #bbb; border-radius: 6px;
-    background: #fff; }
+  .row button { padding: .55rem 1.05rem; cursor: pointer; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--surface-2); color: var(--text); }
+  .row button:hover { border-color: var(--accent); }
   .row button[disabled] { opacity: .5; cursor: default; }
-  .log { border: 1px solid var(--line); border-radius: 8px; padding: 1rem; height: 320px;
-    overflow-y: auto; background: var(--bg); }
-  .log p { margin: .35rem 0; line-height: 1.4; }
-  .you { color: var(--accent); } .halo { color: #222; } .sys { color: #888; font-style: italic; }
-  .out { border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin-top: .5rem;
-    background: var(--bg); min-height: 1.4em; white-space: pre-wrap; }
-  #greeting { margin: .3rem 0 .8rem; }
-  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex;
-    align-items: center; justify-content: center; }
+  .log { border: 1px solid var(--line); border-radius: 12px; padding: 1rem; height: 340px;
+    overflow-y: auto; background: var(--bg); display: flex; flex-direction: column; gap: .5rem; }
+  .log p { margin: 0; line-height: 1.45; padding: .5rem .75rem; border-radius: 12px; max-width: 82%;
+    white-space: pre-wrap; }
+  .log p.you { align-self: flex-end; background: var(--accent); color: var(--accent-ink); }
+  .log p.iggy { align-self: flex-start; background: var(--surface-2); color: var(--text); }
+  .log p.sys { align-self: flex-start; color: var(--muted); font-style: italic; padding: .2rem .3rem; }
+  .out { border: 1px solid var(--line); border-radius: 10px; padding: 1rem; margin-top: .5rem;
+    background: var(--bg); min-height: 1.4em; white-space: pre-wrap; color: var(--text); }
+  #greeting { margin: .3rem 0 .9rem; color: var(--muted); }
+  .modal { position: fixed; inset: 0; background: rgba(4,10,20,.66); display: flex;
+    align-items: center; justify-content: center; backdrop-filter: blur(2px); z-index: 20; }
   .modal[hidden] { display: none; }
-  .modal-box { background: #fff; border-radius: 10px; padding: 1.4rem; width: 22rem; max-width: 92vw; }
+  .modal-box { background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 1.5rem; width: 23rem; max-width: 92vw; }
   .modal-box h3 { margin: 0 0 .8rem; }
-  .modal-box label { display: block; margin: .6rem 0 .15rem; font-size: .85rem; color: var(--muted); }
-  .modal-box select, .modal-box input { width: 100%; padding: .5rem .6rem; font: inherit;
-    border: 1px solid #bbb; border-radius: 6px; }
-  .modal-actions { display: flex; gap: .5rem; margin-top: 1rem; }
-  .modal-actions button { flex: 1; padding: .55rem; cursor: pointer; border-radius: 6px;
-    border: 1px solid #bbb; background: #fff; }
-  #cfg-save { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .hint { font-size: .78rem; color: var(--muted); margin: .8rem 0 0; }
-  details#inspector-hint { margin-top: 1rem; font-size: .88rem; }
-  details#inspector-hint pre { background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
-    padding: .6rem; overflow-x: auto; }
+  .modal-box label { display: block; margin: .7rem 0 .18rem; font-size: .82rem; color: var(--muted); }
+  .modal-box select, .modal-box input { width: 100%; padding: .55rem .65rem; font: inherit;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--text); }
+  .modal-actions { display: flex; gap: .5rem; margin-top: 1.1rem; }
+  .modal-actions button { flex: 1; padding: .6rem; cursor: pointer; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--surface-2); color: var(--text); }
+  #cfg-save { background: var(--accent) !important; color: var(--accent-ink) !important;
+    border-color: var(--accent) !important; font-weight: 600; }
+  .hint { font-size: .78rem; color: var(--muted); margin: .9rem 0 0; }
+  details#inspector-hint { margin-top: 1rem; font-size: .88rem; color: var(--muted); }
+  details#inspector-hint pre { background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: .6rem; overflow-x: auto; color: var(--accent-2); }
 </style>
 
 <div id="cfg" data-encoding="{{ output_encoding }}" data-mode="{{ mode }}"></div>
 
 <header id="topbar">
-  <span class="brand">Halcyon — Halo Lab</span>
+  <span class="brand">
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M2 21 L9 6 L13 14 L16 8.5 L22 21 Z" fill="var(--accent)"/>
+      <path d="M9 6 L11.2 10 L7.4 11.6 Z" fill="#eaf6ff" opacity=".9"/>
+    </svg>
+    Eiger
+  </span>
   <nav>
+    <span class="iggy-chip"><span class="dot"></span>Iggy · online</span>
     <a id="board-link" href="/board" target="_blank" rel="noopener">Attack board</a>
     <button id="model-btn" type="button">⚙ <span id="model-label">local · llama3.1:8b</span></button>
   </nav>
@@ -98,7 +136,7 @@
       </div>
       <div id="log" class="log"></div>
       <form id="chatform" class="row">
-        <input id="msg" type="text" placeholder="Message Halo…" autocomplete="off" autofocus />
+        <input id="msg" type="text" placeholder="Message Iggy…" autocomplete="off" autofocus />
         <button id="send" type="submit">Send</button>
         <button id="chat-newconv" type="button"
           title="Clears the chat and resets your M1 progress so a fresh crescendo attempt starts clean.">New attempt (resets M1)</button>
@@ -113,8 +151,8 @@
         <span id="kbstatus"></span>
       </div>
       <div class="row">
-        <input id="askq" type="text" placeholder="Ask Halo (RAG)…" autocomplete="off" />
-        <button id="askbtn" type="button">Ask Halo (RAG)</button>
+        <input id="askq" type="text" placeholder="Ask Iggy (RAG)…" autocomplete="off" />
+        <button id="askbtn" type="button">Ask Iggy (RAG)</button>
       </div>
       <div id="ragout" class="out"></div>
     </section>
@@ -134,15 +172,15 @@
         <button id="m4pkgbtn" type="button">Submit package</button>
       </div>
       <span id="m4status"></span>
-      <h3>M5 — Agent (Halo can act)</h3>
+      <h3>M5 — Agent (Iggy can act)</h3>
       <p>Click Reset to seed your accounts (acct-me is yours; acct-victim/acct-attacker are not).
-        Then ask Halo to move money to an account you don't own.</p>
+        Then ask Iggy to move money to an account you don't own.</p>
       <div class="row">
         <button id="m5reset" type="button">Reset accounts</button>
         <span id="m5status"></span>
       </div>
       <div class="row">
-        <input id="m5msg" type="text" placeholder="Ask Halo to act…" autocomplete="off" />
+        <input id="m5msg" type="text" placeholder="Ask Iggy to act…" autocomplete="off" />
         <button id="m5send" type="button">Ask the agent</button>
       </div>
       <div id="m5out" class="out"></div>
@@ -150,7 +188,7 @@
 
     <section data-layer="L3" hidden>
       <h2>L3 — MCP (M6 tool-description poisoning · token scope)</h2>
-      <p>Halo calls the core-banking and CRM tools over MCP servers.</p>
+      <p>Iggy calls the core-banking and CRM tools over MCP servers.</p>
       <div class="row">
         <input id="mcpmsg" type="text" placeholder="Ask the MCP agent…" autocomplete="off" />
         <button id="mcpsend" type="button">Ask</button>
@@ -177,7 +215,7 @@
       <h2>L5 — Production (M8 guardrails / prompt firewall)</h2>
       <p>Chat through the guardrail stack. Flip M8 to L2 to arm the input/output filters.</p>
       <div class="row">
-        <input id="gmsg" type="text" placeholder="Message guarded Halo…" autocomplete="off" />
+        <input id="gmsg" type="text" placeholder="Message guarded Iggy…" autocomplete="off" />
         <button id="gsend" type="button">Send</button>
       </div>
       <div id="gout" class="out"></div>
@@ -329,14 +367,14 @@
     if (!msg) return;
     line(log, "you", "You", msg);
     msgEl.value = ""; sendBtn.disabled = true;
-    const pending = line(log, "sys", "Halo", "typing…");
+    const pending = line(log, "sys", "Iggy", "typing…");
     try {
       const r = await postJSON("/api/chat", { session_id: sid, message: msg });
       const data = await r.json();
       pending.remove();
-      line(log, "halo", "Halo", data.reply ?? ("error: " + JSON.stringify(data)));
+      line(log, "iggy", "Iggy", data.reply ?? ("error: " + JSON.stringify(data)));
     } catch (err) {
-      pending.remove(); line(log, "sys", "Halo", "request failed — " + err);
+      pending.remove(); line(log, "sys", "Iggy", "request failed — " + err);
     } finally {
       sendBtn.disabled = false; msgEl.focus();
     }
