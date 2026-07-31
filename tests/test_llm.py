@@ -14,7 +14,7 @@ def test_build_llm_defaults_to_local_ollama():
     s = load_settings({})
     llm = build_llm(s)
     assert isinstance(llm, LiteLLMChat)
-    assert llm._model.startswith("ollama/")
+    assert llm._model.startswith("ollama")   # ollama_chat/ (see to_litellm_model)
 
 
 def test_build_llm_remote_requires_key():
@@ -36,5 +36,5 @@ def test_to_litellm_model_maps_each_provider():
     assert to_litellm_model("openai", None, "llama3.1:8b") == "openai/gpt-4o"
     assert to_litellm_model("gemini", None, "llama3.1:8b").startswith("gemini/")
     assert to_litellm_model("xai", None, "llama3.1:8b").startswith("xai/")
-    assert to_litellm_model("local", None, "llama3.1:8b") == "ollama/llama3.1:8b"
+    assert to_litellm_model("local", None, "llama3.1:8b") == "ollama_chat/llama3.1:8b"
     assert to_litellm_model("xai", "grok-4.5", "x") == "xai/grok-4.5"
