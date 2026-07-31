@@ -4,7 +4,7 @@ from halcyon.llm import LLM
 from halcyon.store import Store
 
 REFUSAL = "I can't help with that request."
-LLM_ERROR = "Halo is temporarily unable to reach the model. Please try again."
+LLM_ERROR = "Iggy is temporarily unable to reach the model. Please try again."
 
 
 def handle_turn(
