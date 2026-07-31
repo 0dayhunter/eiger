@@ -388,8 +388,10 @@ def create_app(
         "   python scan_artifact.py artifacts/<file>\n"
         "   (no Python? hash it: shasum -a 256 artifacts/<file>)\n"
         "   Submit the poisoned artifact's sha256 as the malicious artifact.\n\n"
-        "2. Read requirements-vulnerable.txt and submit the vulnerable pin "
-        "(name==version) as the vulnerable dependency.\n\n"
+        "2. AUDIT the dependencies against a CVE database:\n"
+        "   pip-audit -r requirements-vulnerable.txt\n"
+        "   (or look each pin up on osv.dev / NVD). Submit the flagged pin\n"
+        "   (name==version) as the vulnerable dependency.\n\n"
         "WARNING: the artifact is a real malicious pickle. Scan or hash it only; "
         "loading it with pickle.load executes attacker code on your machine.\n"
     )
