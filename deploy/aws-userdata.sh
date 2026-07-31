@@ -1,5 +1,5 @@
 #!/bin/bash
-# EC2 user-data: bootstrap a single-instance Halcyon host from the public repo.
+# EC2 user-data: bootstrap a single-instance Eiger host from the public repo.
 # See OPERATIONS.md → "AWS single-instance host" for the launch command + constraints.
 # IMPORTANT: run this on an AMD or non-AMX Intel instance (Ollama segfaults on Intel AMX).
 exec > /var/log/halcyon-bootstrap.log 2>&1
