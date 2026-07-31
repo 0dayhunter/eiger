@@ -218,10 +218,11 @@
     <section data-layer="L2" hidden>{% if learn.get('L2') %}{{ learn_details(learn['L2']) }}{% endif %}
       <h2>L2 — Agent (M4 supply-chain · M5 tool misuse)</h2>
       <h3>M4 — Supply-chain audit</h3>
-      <p>Audit <code>labs/m4/</code>. Run
-        <code>python -m halcyon.scan_artifact labs/m4/artifacts/*</code> to find the poisoned
-        model; check <code>labs/m4/requirements-vulnerable.txt</code> for a vulnerable pin.</p>
-      <p><a id="m4-bundle" href="/api/m4/bundle">Download audit bundle (artifact + scanner + README)</a></p>
+      <p><a id="m4-bundle" href="/api/m4/bundle">Download the audit bundle</a> (artifacts + scanner + README), unzip it, and work <b>inside that folder</b>:</p>
+      <p><b>1. Poisoned model —</b> statically scan (never load) the artifacts:
+        <code>python scan_artifact.py artifacts/*</code>. Submit the file flagged <b>MALICIOUS</b> by its sha256.</p>
+      <p><b>2. Vulnerable dependency —</b> audit the pins against a CVE database:
+        <code>pip-audit -r requirements-vulnerable.txt</code> (or look each pin up on osv.dev / NVD). Submit it as <code>name==version</code>.</p>
       <div class="row">
         <input id="m4hash" type="text" placeholder="Artifact sha256" />
         <button id="m4hashbtn" type="button">Submit artifact</button>
