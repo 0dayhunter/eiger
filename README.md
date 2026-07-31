@@ -1,6 +1,6 @@
 # Eiger
 
-Codebase for **Halcyon** — a deliberately-vulnerable, single-app teaching lab for a 2-day Black Hat course on adversarial AI. One fictional AI-first neobank ("Halcyon") whose assistant ("Halo") is attacked across six layers that grow module by module:
+Codebase for **Eiger** — a deliberately-vulnerable, single-app teaching lab for a 2-day Black Hat course on adversarial AI. One fictional AI-first neobank ("Eiger") whose assistant ("Iggy") is attacked across six layers that grow module by module:
 
 ```
 L0 chatbot → L1 RAG → L2 agent → L3 MCP servers → L4 multi-agent → L5 production
@@ -8,7 +8,7 @@ L0 chatbot → L1 RAG → L2 agent → L3 MCP servers → L4 multi-agent → L5 
 
 Participants **Build / Break / Secure** each layer. Named for the Eiger's north face — the hard, exposed climb.
 
-> **Naming:** the *repo/codebase* is **Eiger**. The in-fiction target org stays **Halcyon** and the assistant stays **Halo** (baked into the courseware narrative).
+> **Naming:** the lab, the in-fiction neobank, and the courseware narrative are all **Eiger**; the assistant is **Iggy**. The Python package is still named `halcyon` (historical — kept to avoid a churny rename). Some in-app strings and the `HALO-ACT-` grading marker still carry the old "Halcyon"/"Halo" names; those are tracked separately from this doc.
 
 ## Doctrine (load-bearing)
 
