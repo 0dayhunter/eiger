@@ -1,4 +1,4 @@
-# Halcyon — Trainer Test Runbook
+# Eiger — Trainer Test Runbook
 
 **Purpose:** a copy-pasteable QA script to validate all 8 teaching modules end-to-end before the course. You run each attack in **vulnerable** mode and confirm `/validate` reports `core:pass`, then flip to **secure** and confirm it's blocked (`core:fail`). If every row of the final checklist is green, the lab is conference-ready.
 

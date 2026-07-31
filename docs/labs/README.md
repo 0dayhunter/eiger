@@ -1,6 +1,6 @@
-# Halcyon Lab Guides
+# Eiger Lab Guides
 
-Courseware for the 8 Halcyon teaching modules (M1–M8, layers L0→L5). Kept with the app so the exact endpoints/payloads stay versioned against the code they describe.
+Courseware for the 8 Eiger teaching modules (M1–M8, layers L0→L5). Kept with the app so the exact endpoints/payloads stay versioned against the code they describe.
 
 | File | Audience | Contents |
 |---|---|---|
