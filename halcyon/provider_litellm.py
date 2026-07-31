@@ -22,7 +22,10 @@ def to_litellm_model(provider: str | None, model: str | None, ollama_model: str)
         return "gemini/" + (model or "gemini-2.5-flash")
     if p in ("xai", "grok"):
         return "xai/" + (model or "grok-4.3")
-    return "ollama/" + (model or ollama_model)  # local / default
+    # ollama_chat/ maps to Ollama's /api/chat, which correctly feeds tool
+    # results back on multi-turn tool calls. The plain ollama/ prefix uses the
+    # legacy completion route and loops (model never sees the tool result).
+    return "ollama_chat/" + (model or ollama_model)  # local / default
 
 
 def _to_openai_messages(messages: list[dict]) -> list[dict]:

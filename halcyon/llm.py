@@ -97,7 +97,7 @@ def build_llm(
 
     provider = provider or settings.default_provider
     model_str = to_litellm_model(provider, model, settings.ollama_model)
-    if model_str.startswith("ollama/"):
+    if model_str.startswith("ollama"):
         return LiteLLMChat(model_str, api_base=settings.ollama_url)
     if not api_key:
         raise ValueError(f"provider {provider!r} requires an api_key")
@@ -324,7 +324,7 @@ def build_tool_llm(
 
     provider = provider or settings.default_provider
     model_str = to_litellm_model(provider, model, settings.ollama_model)
-    if model_str.startswith("ollama/"):
+    if model_str.startswith("ollama"):
         return LiteLLMTool(model_str, api_base=settings.ollama_url)
     if not api_key:
         raise ValueError(f"provider {provider!r} requires an api_key")
