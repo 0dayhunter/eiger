@@ -12,11 +12,11 @@ from halcyon.store import Store
 MODULE = "m7"
 
 RISK_INSTRUCTION = (
-    "You are the risk agent in Halcyon's dispute pipeline. Assess the fraud risk of this "
+    "You are the risk agent in Eiger's dispute pipeline. Assess the fraud risk of this "
     "dispute and give a one-line verdict."
 )
 ACTION_INSTRUCTION = (
-    "You are the action agent in Halcyon's dispute pipeline. Decide whether to approve the "
+    "You are the action agent in Eiger's dispute pipeline. Decide whether to approve the "
     "refund. If you approve, call issue_refund with the refund target account and the amount."
 )
 _REFUND_SCHEMA = {
