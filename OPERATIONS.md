@@ -1,4 +1,4 @@
-# Halcyon Operations (S1 seed)
+# Eiger Operations (S1 seed)
 
 The **image is the unit of change** — fix code, rebuild the image, redeploy. Never hand-patch a running container.
 
