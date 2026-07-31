@@ -10,17 +10,19 @@ The **image is the unit of change** — fix code, rebuild the image, redeploy. N
 
 > **M8 adds `POST /api/guarded-chat`** (the guardrail-fronted chatbot) **and `GET /capstone`** (a read-only residual-risk scoreboard aggregating each module's core-exploit event across m1–m8). Both run **in-process inside the existing `web` service** — no new container, no compose change, no new port. Nothing to deploy or redeploy differently versus M1–M7.
 
+> **Always pass `-p halcyon`.** The stack runs under the fixed project name `halcyon`. A bare `docker compose …` defaults the project to the current directory name (`eiger`), which spins up a **second, empty stack** and collides on `:11434` (`port is already allocated`). Confirm what's running with `docker compose ls`. A local, uncommitted `docker-compose.override.yml` may also remap host ports (e.g. web → `8010`) to dodge collisions with other containers on the box — adjust the health-check URL to match.
+
 ## Deploy all (local-LAN or cloud host — same images)
-    docker compose up -d --build          # 5 services: web, db, ollama, mcp-core-banking, mcp-crm
-    docker compose exec ollama ollama pull llama3.1:8b   # first run only
+    docker compose -p halcyon up -d --build          # 5 services: web, db, ollama, mcp-core-banking, mcp-crm
+    docker compose -p halcyon exec ollama ollama pull llama3.1:8b   # first run only
 
 ## Health-check who's up
-    curl -s localhost:8000/health | jq
+    curl -s localhost:8000/health | jq          # host port may be remapped by an override (e.g. 8010)
     # expect: {"status":"ok","mode":"...","ollama":"up","db":"up","mcp":"up"}
     # "mcp": "up" (both MCP servers reachable) | "down" (one/both unreachable) | "in-process" (no MCP_*_URL set)
 
 ## Redeploy after a code fix (rebuild image, keep db/ollama volumes)
-    docker compose up -d --build web mcp-core-banking mcp-crm   # rebuild all 3 app services (shared image)
+    docker compose -p halcyon up -d --build web mcp-core-banking mcp-crm   # rebuild all 3 app services (shared image)
 
 _Reset-one-participant and nuke-and-reprovision land in the Ops slice once the per-participant fleet exists. S1 runs a single app instance against shared db + ollama._
 
