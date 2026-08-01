@@ -283,6 +283,11 @@
         <button id="gsend" type="button">Send</button>
       </div>
       <div id="gout" class="out"></div>
+      <p style="margin-top:1rem">
+        <a id="capstone-link" target="_blank" rel="noopener">Capstone — your residual risk across M1–M8</a>
+        &nbsp;·&nbsp;
+        <a href="/board" target="_blank" rel="noopener">Attack board (all sessions)</a>
+      </p>
     </section>
 
   </main>
@@ -313,6 +318,8 @@
 
 <script nonce="{{ nonce }}">
   const sid = new URLSearchParams(location.search).get("session") || "dev";
+  const _cap = document.getElementById("capstone-link");
+  if (_cap) _cap.href = "/capstone?session=" + encodeURIComponent(sid);
   const cfgEl = document.getElementById("cfg");
   const baseLevel = cfgEl.dataset.mode === "secure" ? "L2" : "L1";
 
