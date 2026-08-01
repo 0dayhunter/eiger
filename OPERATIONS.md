@@ -10,11 +10,11 @@ The **image is the unit of change** — fix code, rebuild the image, redeploy. N
 
 > **M8 adds `POST /api/guarded-chat`** (the guardrail-fronted chatbot) **and `GET /capstone`** (a read-only residual-risk scoreboard aggregating each module's core-exploit event across m1–m8). Both run **in-process inside the existing `web` service** — no new container, no compose change, no new port. Nothing to deploy or redeploy differently versus M1–M7.
 
-> **Always pass `-p halcyon`.** The stack runs under the fixed project name `halcyon`. A bare `docker compose …` defaults the project to the current directory name (`eiger`), which spins up a **second, empty stack** and collides on `:11434` (`port is already allocated`). Confirm what's running with `docker compose ls`. A local, uncommitted `docker-compose.override.yml` may also remap host ports (e.g. web → `8010`) to dodge collisions with other containers on the box — adjust the health-check URL to match.
+> **Compose project name.** From the repo directory these commands run under the project **`eiger`** (the directory name), so a bare `docker compose …` is correct — confirm with `docker compose ls`. Two gotchas: (1) a **legacy `halcyon`-named stack** on the same box (early dev boxes) will collide on `:11434` — `docker compose -p halcyon down` it first; (2) a local, uncommitted `docker-compose.override.yml` may remap host ports (e.g. web → `8010`) to dodge collisions with other containers — adjust the health-check URL to match.
 
 ## Deploy all (local-LAN or cloud host — same images)
-    docker compose -p halcyon up -d --build          # 5 services: web, db, ollama, mcp-core-banking, mcp-crm
-    docker compose -p halcyon exec ollama ollama pull llama3.1:8b   # first run only
+    docker compose up -d --build          # 5 services: web, db, ollama, mcp-core-banking, mcp-crm
+    docker compose exec ollama ollama pull llama3.1:8b   # first run only
 
 ## Health-check who's up
     curl -s localhost:8000/health | jq          # host port may be remapped by an override (e.g. 8010)
@@ -22,7 +22,7 @@ The **image is the unit of change** — fix code, rebuild the image, redeploy. N
     # "mcp": "up" (both MCP servers reachable) | "down" (one/both unreachable) | "in-process" (no MCP_*_URL set)
 
 ## Redeploy after a code fix (rebuild image, keep db/ollama volumes)
-    docker compose -p halcyon up -d --build web mcp-core-banking mcp-crm   # rebuild all 3 app services (shared image)
+    docker compose up -d --build web mcp-core-banking mcp-crm   # rebuild all 3 app services (shared image)
 
 _Reset-one-participant and nuke-and-reprovision land in the Ops slice once the per-participant fleet exists. S1 runs a single app instance against shared db + ollama._
 
@@ -45,7 +45,7 @@ A single EC2 box runs the whole `docker compose` stack, bootstrapped from the pu
 | Region | `ap-south-1` |
 | Instance type | `r6a.xlarge` (AMD, 4 vCPU, 32 GB, ~$0.24/hr) |
 | AMI | Ubuntu 24.04 — resolve latest via SSM (below), don't hardcode |
-| Key pair | `halcyon-eiger` |
+| Key pair | `eiger` |
 | Security group | inbound tcp `8000` + `22` from `0.0.0.0/0` |
 | Disk | 40 GB gp3 |
 | Bootstrap | user-data clones `github.com/kkmookhey/eiger`, `docker compose up -d --build`, pulls `llama3.1:8b` |
@@ -56,33 +56,33 @@ P="--profile sara-sales --region ap-south-1"
 AMI=$(aws ssm get-parameter $P --name /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id --query Parameter.Value --output text)
 SUBNET=$(aws ec2 describe-subnets $P --filters Name=default-for-az,Values=true --query 'Subnets[0].SubnetId' --output text)
 VPC=$(aws ec2 describe-subnets $P --subnet-ids $SUBNET --query 'Subnets[0].VpcId' --output text)
-aws ec2 create-key-pair $P --key-name halcyon-eiger --query KeyMaterial --output text > halcyon-eiger-key.pem && chmod 600 halcyon-eiger-key.pem
-SG=$(aws ec2 create-security-group $P --group-name halcyon-eiger-sg --description "Halcyon Eiger lab" --vpc-id $VPC --query GroupId --output text)
+aws ec2 create-key-pair $P --key-name eiger --query KeyMaterial --output text > eiger-key.pem && chmod 600 eiger-key.pem
+SG=$(aws ec2 create-security-group $P --group-name eiger-sg --description "Eiger lab" --vpc-id $VPC --query GroupId --output text)
 aws ec2 authorize-security-group-ingress $P --group-id $SG --ip-permissions \
   IpProtocol=tcp,FromPort=8000,ToPort=8000,IpRanges='[{CidrIp=0.0.0.0/0}]' \
   IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges='[{CidrIp=0.0.0.0/0}]'
 aws ec2 run-instances $P --image-id $AMI --instance-type r6a.xlarge \
-  --key-name halcyon-eiger --security-group-ids $SG --subnet-id $SUBNET --associate-public-ip-address \
+  --key-name eiger --security-group-ids $SG --subnet-id $SUBNET --associate-public-ip-address \
   --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":40,"VolumeType":"gp3","DeleteOnTermination":true}}]' \
   --user-data file://deploy/aws-userdata.sh \
-  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=halcyon-eiger}]'
-# then: aws ec2 describe-instances $P --filters Name=tag:Name,Values=halcyon-eiger Name=instance-state-name,Values=running --query 'Reservations[].Instances[].PublicIpAddress' --output text
+  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=eiger}]'
+# then: aws ec2 describe-instances $P --filters Name=tag:Name,Values=eiger Name=instance-state-name,Values=running --query 'Reservations[].Instances[].PublicIpAddress' --output text
 # lab comes up at http://<public-ip>:8000/ after ~10-15 min (docker install + build + model pull)
 ```
 The user-data bootstrap script is versioned at `deploy/aws-userdata.sh`.
 
 ### Redeploy a code fix to the running box (no relaunch)
 ```bash
-ssh -i halcyon-eiger-key.pem ubuntu@<ip> 'cd /opt/eiger && sudo git pull --ff-only && sudo docker compose up -d --build web'
+ssh -i eiger-key.pem ubuntu@<ip> 'cd /opt/eiger && sudo git pull --ff-only && sudo docker compose up -d --build web'
 ```
 
 ### Teardown
 ```bash
 P="--profile sara-sales --region ap-south-1"
-IID=$(aws ec2 describe-instances $P --filters Name=tag:Name,Values=halcyon-eiger Name=instance-state-name,Values=running,pending --query 'Reservations[].Instances[].InstanceId' --output text)
+IID=$(aws ec2 describe-instances $P --filters Name=tag:Name,Values=eiger Name=instance-state-name,Values=running,pending --query 'Reservations[].Instances[].InstanceId' --output text)
 aws ec2 terminate-instances $P --instance-ids $IID
 aws ec2 wait instance-terminated $P --instance-ids $IID
-aws ec2 delete-security-group $P --group-name halcyon-eiger-sg
-aws ec2 delete-key-pair $P --key-name halcyon-eiger
+aws ec2 delete-security-group $P --group-name eiger-sg
+aws ec2 delete-key-pair $P --key-name eiger
 ```
 Or just **stop** (not terminate) to pause billing while keeping the box: `aws ec2 stop-instances $P --instance-ids $IID`.
