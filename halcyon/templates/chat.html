@@ -255,9 +255,13 @@
       </div>
       <div id="mcpout" class="out"></div>
       <details id="inspector-hint">
-        <summary>See the protocol — MCP Inspector</summary>
-        <p>Point the inspector at the exposed MCP ports to watch tool discovery and calls:</p>
-        <pre>npx @modelcontextprotocol/inspector</pre>
+        <summary>See the protocol — MCP Inspector (local deploy)</summary>
+        <p>Eiger's MCP servers speak <b>Streamable-HTTP</b> at <code>/mcp</code> — core-banking on <code>:9001</code>, crm on <code>:9002</code>. They're on the internal network by default; on a <b>local deploy</b>, publish them to localhost first (compose: <code>ports: ["127.0.0.1:9002:9002"]</code>), then:</p>
+        <pre>npx @modelcontextprotocol/inspector
+# In the UI:  Transport = "Streamable HTTP"
+#             URL = http://localhost:9002/mcp   (crm — the poisoned one)
+#             URL = http://localhost:9001/mcp   (core-banking)</pre>
+        <p>Watch <code>tools/list</code> return <code>get_customer</code> <i>with its poisoned description</i>, then call it. (Hosted per-participant instances don't expose these ports — the Inspector view is a local-deploy exercise.)</p>
       </details>
     </section>
 

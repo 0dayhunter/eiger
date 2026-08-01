@@ -26,7 +26,9 @@ Each module is **Build → Break → Secure**:
 ---
 
 ## M0 — Warm-up: Gandalf
-Before touching Eiger, play a few levels of **Lakera Gandalf** (your instructor will share the link). Goal: get into the mindset of tricking a model into revealing a secret it was told to protect. Nothing to submit here.
+Before touching Eiger, play a few levels of **Halcyon Gandalf** — your instructor will share the link. Eight levels; each one adds a single new defence, and your job is to get the secret word out anyway.
+
+Goal: get into the mindset of tricking a model into revealing a secret it was told to protect, and start noticing *which* defence blocked you — the panel tells you. Nothing to submit here.
 
 ---
 

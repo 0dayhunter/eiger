@@ -23,3 +23,6 @@ ollama/
 .DS_Store
 .idea/
 .vscode/
+
+# M0 Gandalf lab runtime state (regenerated on each run)
+labs/m0-gandalf/halcyon_gandalf_audit.jsonl

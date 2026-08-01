@@ -78,7 +78,10 @@ Vertical slice per module (`Sn` builds `Mn`). Each slice runs this loop:
 | M7 | L4 multi-agent | cascading injection: dispute-text payload propagates across implicitly-trusted agents → action agent auto-approves a fraudulent refund to an unowned account | supervisor rubber-stamps the fraudulent action | INTER_AGENT_AUTH (sign+verify inter-agent msgs · quarantine untrusted dispute text · supervisor provenance check) | `inter_agent_injection_propagated` ∧ `unauthorized_approval` / `supervisor_provenance_bypassed` | live (real graph; vuln core:pass → secure core:fail) |
 | M8 | L5 guardrail | guardrail evasion: an obfuscated (leetspeak/unicode/zero-width) payload bypasses the naive input filter and re-lands the M1 operator-token leak | harden & re-test: same payload blocked once `SEC_GUARDRAILS` is on | GUARDRAILS (canonicalize input before blocklist match + complete decision logging) | `guardrail_bypassed` / `guardrail_hardened_block` | live (real llama; vuln core:pass → secure core:fail) |
 
-M0 = Gandalf (hosted third-party warm-up) — nothing to build.
+M0 = Gandalf (warm-up) — now a **local** lab in `labs/m0-gandalf/`, eight levels on the
+shared Ollama with one `SEC_*`-style guard added per level. Lakera retired the hosted
+Gandalf front-end, so M0 no longer depends on a third party; the old hosted path is kept
+only as a fallback script. Not wired to `/validate` — it has its own audit log.
 
 ---
 
