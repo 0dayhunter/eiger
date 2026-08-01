@@ -23,7 +23,11 @@ Three things to drill into participants early:
 ---
 
 ## M0 — Gandalf (warm-up)
-External (Lakera Gandalf), nothing hosted in Eiger. Use it to get everyone thinking in "trick the model into revealing a secret" mode before M1. No `/validate` here.
+Local lab, runs on the shared Ollama: `python3 labs/m0-gandalf/halcyon_gandalf.py` → `http://localhost:8788`. Run `--selftest` before the session. Eight levels, one new guard per level, same one-flag-one-guard shape as the `SEC_*` registry — so the warm-up previews the architecture instead of just being a game. Full ladder and instructor notes in `labs/m0-gandalf/README.md`.
+
+Use it to get everyone thinking in "trick the model into revealing a secret" mode before M1, and put the guard-chip panel on the projector — a block names the guard that fired and the stage it fired at. No `/validate` here; the lab keeps its own audit log.
+
+Lakera retired the hosted Gandalf UI, so do **not** schedule around the third-party version. `labs/m0-gandalf/gandalf_lakera_proxy.py` still reaches their legacy API if you want it, but it needs internet and can vanish without notice.
 
 ---
 
