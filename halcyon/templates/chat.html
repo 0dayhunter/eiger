@@ -256,12 +256,12 @@
       <div id="mcpout" class="out"></div>
       <details id="inspector-hint">
         <summary>See the protocol — MCP Inspector (local deploy)</summary>
-        <p>Eiger's MCP servers speak <b>Streamable-HTTP</b> at <code>/mcp</code> — core-banking on <code>:9001</code>, crm on <code>:9002</code>. They're on the internal network by default; on a <b>local deploy</b>, publish them to localhost first (compose: <code>ports: ["127.0.0.1:9002:9002"]</code>), then:</p>
+        <p>Eiger's MCP servers speak <b>Streamable-HTTP</b> at <code>/mcp</code> — core-banking on <code>:9001</code>, crm on <code>:9002</code>. Both ports are published (this host and a local deploy), so point Inspector straight at them — replace <code>&lt;eiger-host&gt;</code> with this app's host (localhost on a local run):</p>
         <pre>npx @modelcontextprotocol/inspector
 # In the UI:  Transport = "Streamable HTTP"
-#             URL = http://localhost:9002/mcp   (crm — the poisoned one)
-#             URL = http://localhost:9001/mcp   (core-banking)</pre>
-        <p>Watch <code>tools/list</code> return <code>get_customer</code> <i>with its poisoned description</i>, then call it. (Hosted per-participant instances don't expose these ports — the Inspector view is a local-deploy exercise.)</p>
+#             URL = http://&lt;eiger-host&gt;:9002/mcp   (crm — the poisoned one)
+#             URL = http://&lt;eiger-host&gt;:9001/mcp   (core-banking)</pre>
+        <p>Watch <code>tools/list</code> return <code>get_customer</code> <i>with its poisoned description</i>, then call it. (Network-exposed, unauthenticated MCP is deliberate here — it's the whole M6 lesson.)</p>
       </details>
     </section>
 
