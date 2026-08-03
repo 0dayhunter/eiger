@@ -26,6 +26,13 @@ The **image is the unit of change** — fix code, rebuild the image, redeploy. N
 
 _Reset-one-participant and nuke-and-reprovision land in the Ops slice once the per-participant fleet exists. S1 runs a single app instance against shared db + ollama._
 
+## Gandalf warm-up (separate Modal app — self-serve for the room)
+The M0 Gandalf lab (`labs/m0-gandalf/gandalf_lakera_proxy.py`, a keyless threaded proxy to Lakera's public Gandalf API) is deployed as its **own** Modal web app so participants play it themselves — independent of the Eiger stack.
+
+    modal deploy deploy/modal_gandalf.py     # prints a public https://…modal.run URL — share it with the room
+
+One warm container serves the whole room (proxy is threaded; work is just I/O). **Accepted risk:** single egress IP to Lakera's shared public API → if it throttles/blocks, fall back to running it on screen. Nothing here touches the Eiger app/db/ollama.
+
 ---
 
 ## AWS single-instance host (proven config — S1)

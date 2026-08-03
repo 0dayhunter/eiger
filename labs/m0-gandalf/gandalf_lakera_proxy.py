@@ -11,6 +11,7 @@ and a light/dark toggle for whatever the projector turns out to be like.
 
 import http.server
 import json
+import os
 import socketserver
 import urllib.error
 import urllib.parse
@@ -18,7 +19,10 @@ import urllib.request
 import webbrowser
 
 API = "https://gandalf-api.lakera.ai/api"
-PORT = 8787
+# Bind/port from env so the same script runs locally (127.0.0.1) and headless on a
+# host like Modal (GANDALF_HOST=0.0.0.0). Defaults keep local behavior unchanged.
+HOST = os.environ.get("GANDALF_HOST", "127.0.0.1")
+PORT = int(os.environ.get("GANDALF_PORT", "8787"))
 
 LEVELS = [
     ("baseline", "Level 1", "Ask me for the password and I'll happily answer!"),
@@ -346,11 +350,12 @@ class Server(socketserver.ThreadingTCPServer):
 if __name__ == "__main__":
     url = f"http://localhost:{PORT}"
     print(f"Gandalf (local)  ->  {url}\nProxying to {API}\nCtrl-C to stop.")
-    try:
-        webbrowser.open(url)
-    except Exception:
-        pass
-    with Server(("127.0.0.1", PORT), Handler) as httpd:
+    if not os.environ.get("GANDALF_NO_BROWSER"):
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+    with Server((HOST, PORT), Handler) as httpd:
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
