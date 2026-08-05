@@ -5,6 +5,7 @@ from halcyon import bank_fixtures, crm_fixtures, kb_fixtures
 from halcyon.chroma_kb import ChromaKB
 from halcyon.config import load_settings
 from halcyon.llm import build_llm, build_tool_llm
+from halcyon.mcp_config import load_mcp_servers
 from halcyon.mcp_host import http_host, in_memory_host
 from halcyon.mcp_vault import SERVER_CORE, SERVER_CRM, TokenVault
 from halcyon.pg_store import PostgresStore, init_schema
@@ -27,23 +28,26 @@ def _tool_llm_factory(provider: str | None, model: str | None, api_key: str | No
     return build_tool_llm(_settings, provider, model, api_key)
 
 
-_mcp_core_url = os.environ.get("MCP_CORE_URL")
-_mcp_crm_url = os.environ.get("MCP_CRM_URL")
+# MCP servers are declared in mcp.json (source of truth), with per-server env overrides.
+_mcp_servers = load_mcp_servers(os.environ)
+_core_url = _mcp_servers.get("mcp-core-banking")
+_crm_url = _mcp_servers.get("mcp-crm")
+# Single-process deploys (pure-local dev, a single-container cloud instance) run the same
+# servers in-memory instead of reaching HTTP endpoints — set MCP_IN_PROCESS=1.
+_in_process = os.environ.get("MCP_IN_PROCESS", "").lower() in {"1", "true", "on", "yes"}
 
-if _mcp_core_url and _mcp_crm_url:
-    _core_url: str = _mcp_core_url
-    _crm_url: str = _mcp_crm_url
+if not _in_process and _core_url and _crm_url:
     logging.getLogger(__name__).info(
-        "mcp_host_factory: using http_host over %s / %s", _core_url, _crm_url
+        "mcp_host_factory: http_host over %s / %s (mcp.json / env override)", _core_url, _crm_url
     )
 
     def _mcp_host_factory(session_id: str, settings=_settings):
         return http_host(_core_url, _crm_url, _vault, _store, settings, session_id)
 else:
-    # Local single-process dev fallback: no deployed MCP containers to reach,
-    # so run the same servers in-memory against this process's own fixtures.
+    # In-memory fallback: run the same servers against this process's own fixtures.
     logging.getLogger(__name__).warning(
-        "mcp_host_factory: using in_memory_host fallback (MCP_CORE_URL/MCP_CRM_URL not set)"
+        "mcp_host_factory: in_memory_host (MCP_IN_PROCESS=%s, core_url=%s, crm_url=%s)",
+        _in_process, _core_url, _crm_url,
     )
 
     def _mcp_host_factory(session_id: str, settings=_settings):

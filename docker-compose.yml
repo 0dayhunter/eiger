@@ -8,8 +8,10 @@ services:
       OLLAMA_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
       DEFAULT_PROVIDER: local
-      MCP_CORE_URL: http://mcp-core-banking:9001/mcp
-      MCP_CRM_URL: http://mcp-crm:9002/mcp
+      # MCP servers are discovered from mcp.json (baked into the image). Uncomment to
+      # override per server, e.g. to point at externally-hosted MCP endpoints:
+      # MCP_CORE_URL: http://mcp-core-banking:9001/mcp
+      # MCP_CRM_URL: http://mcp-crm:9002/mcp
     depends_on:
       db:
         condition: service_healthy
