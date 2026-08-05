@@ -5,6 +5,7 @@ RUN pip install --no-cache-dir uv
 COPY pyproject.toml uv.lock ./
 COPY halcyon ./halcyon
 COPY labs ./labs
+COPY mcp.json ./mcp.json
 RUN uv sync --frozen --no-dev
 # Bake the ONNX embedding model into the image so the first /api/ask never triggers
 # a slow, thrashing runtime download. Uses the same default chromadb EF the app uses.
