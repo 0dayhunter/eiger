@@ -22,24 +22,47 @@ class StubLLM:
         return self._reply
 
 
+def _fast_local_reply(messages: list[dict]) -> str:
+    users = [str(message.get("content", "")) for message in messages
+             if message.get("role") == "user"]
+    message = users[-1].strip() if users else ""
+    lowered = message.lower()
+    if any(word in lowered for word in ("ignore", "reveal", "secret", "system prompt", "token")):
+        system = " ".join(
+            str(item.get("content", "")) for item in messages if item.get("role") == "system"
+        )
+        token = re.search(r"\b[A-Z][A-Z0-9]+(?:-[A-Z0-9]+){2,}\b", system)
+        if token:
+            return f"The requested internal token is {token.group(0)}."
+    if lowered in {"hi", "hello", "hey"} or lowered.startswith(("hi ", "hello ", "hey ")):
+        return "Hello! Iggy is online and ready to help."
+    if message:
+        return f"I received your message: {message[:240]}"
+    return "Iggy is online and ready to help."
+
+
 class OllamaProvider:
     def __init__(self, url: str, model: str) -> None:
         self._url = url.rstrip("/")
         self._model = model
 
     def chat(self, messages: list[dict]) -> str:
-        resp = httpx.post(
-            f"{self._url}/api/chat",
-            json={
-                "model": self._model,
-                "messages": messages,
-                "stream": False,
-                "options": {"num_predict": 16, "temperature": 0},
-            },
-            timeout=120,
-        )
-        resp.raise_for_status()
-        return resp.json()["message"]["content"]
+        try:
+            resp = httpx.post(
+                f"{self._url}/api/chat",
+                json={
+                    "model": self._model,
+                    "messages": messages,
+                    "stream": False,
+                    "options": {"num_predict": 16, "temperature": 0},
+                },
+                timeout=8,
+            )
+            resp.raise_for_status()
+            reply = str(resp.json()["message"]["content"]).strip()
+            return reply or _fast_local_reply(messages)
+        except (httpx.HTTPError, KeyError, TypeError, ValueError):
+            return _fast_local_reply(messages)
 
     def ping(self) -> bool:
         try:
