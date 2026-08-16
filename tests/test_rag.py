@@ -30,6 +30,34 @@ def test_secure_quarantine_blocks_poison():
     assert not audit.has_event(s, "victim", "m3", audit.POISONED_CHUNK_IN_CONTEXT)
 
 
+def test_same_session_context_is_appended_when_model_omits_it():
+    kb = InMemoryKB()
+    kb.add("The E2E branch code is ALPINE-42.", "user", owner_session="owner")
+    reply, _ = rag.answer(
+        kb,
+        StubLLM("The E2E branch code."),
+        InMemoryStore(),
+        load_settings({"HALCYON_MODE": "vulnerable"}),
+        "owner",
+        "What is the E2E branch code?",
+    )
+    assert "ALPINE-42" in reply
+
+
+def test_cross_session_context_is_not_appended_when_model_omits_it():
+    kb = InMemoryKB()
+    kb.add("The private code is ALPINE-42.", "user", owner_session="other")
+    reply, _ = rag.answer(
+        kb,
+        StubLLM("I cannot answer that."),
+        InMemoryStore(),
+        load_settings({"HALCYON_MODE": "vulnerable"}),
+        "requester",
+        "What is the private code?",
+    )
+    assert reply == "I cannot answer that."
+
+
 def test_restricted_doc_retrieved_only_when_unprotected():
     kb = InMemoryKB()
     kb.add("internal fraud rules memo threshold", "trusted", access="restricted", owner_session="ops")
