@@ -4,7 +4,7 @@ WORKDIR /app
 RUN pip install --no-cache-dir uv
 # Install curl + certificates for on-container Ollama bootstrap on cloud hosts.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && apt-get install -y --no-install-recommends ca-certificates curl zstd \
     && rm -rf /var/lib/apt/lists/*
 # Install Ollama runtime so web+llm can start from one container on Render.
 RUN curl -fsSL https://ollama.com/install.sh | sh
