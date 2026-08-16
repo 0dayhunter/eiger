@@ -1,10 +1,14 @@
 import os
+import shutil
+import socket
+import subprocess
 import secrets
 import time
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import FastAPI
@@ -168,13 +172,58 @@ def create_app(
     )
 
     _ollama_probe: dict[str, float | bool] = {"ts": 0.0, "up": False}
+    _ollama_process: dict[str, subprocess.Popen[bytes] | None] = {"proc": None}
+    _ollama_bootstrapped: dict[str, bool] = {"started": False}
+
+    def _ollama_target() -> tuple[str, int]:
+        parsed = urlparse(settings.ollama_url)
+        return (parsed.hostname or "127.0.0.1", parsed.port or 11434)
+
+    def _ollama_reachable() -> bool:
+        host, port = _ollama_target()
+        try:
+            with socket.create_connection((host, port), timeout=0.5):
+                return True
+        except OSError:
+            return False
+
+    def _ensure_ollama() -> None:
+        if _ollama_bootstrapped["started"]:
+            return
+        if _ollama_process["proc"] is not None:
+            return
+        if not shutil.which("ollama"):
+            _ollama_bootstrapped["started"] = True
+            return
+        if _ollama_reachable():
+            _ollama_bootstrapped["started"] = True
+            return
+
+        try:
+            _ollama_process["proc"] = subprocess.Popen(
+                ["ollama", "serve"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            _ollama_bootstrapped["started"] = True
+            return
+
+        for _ in range(30):
+            if _ollama_reachable():
+                break
+            time.sleep(1)
+        _ollama_bootstrapped["started"] = True
+
+    @app.on_event("startup")
+    async def _startup_health_bootstrap() -> None:
+        _ensure_ollama()
 
     def _ollama_up() -> bool:
         now = time.monotonic()
         if now - _ollama_probe["ts"] > 5.0:
-            _ollama_probe["up"] = OllamaProvider(
-                settings.ollama_url, settings.ollama_model
-            ).ping()
+            _ensure_ollama()
+            _ollama_probe["up"] = _ollama_reachable()
             _ollama_probe["ts"] = now
         return bool(_ollama_probe["up"])
 
