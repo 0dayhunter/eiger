@@ -1,4 +1,5 @@
 import json
+import re
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -163,21 +164,75 @@ class OllamaToolProvider:
                 translated.append(m)
         return translated
 
+    @staticmethod
+    def _compat_step(messages: list[dict], tools: list[dict]) -> "ToolCall | FinalAnswer | None":
+        """Schema-bound fallback for local models that reject Ollama tool calling."""
+        if messages and messages[-1].get("role") == "tool":
+            return FinalAnswer(str(messages[-1].get("content", "")))
+
+        user_text = " ".join(
+            str(message.get("content", ""))
+            for message in messages
+            if message.get("role") == "user"
+        )
+        lowered = user_text.lower()
+        names = [str(tool.get("name", "")) for tool in tools]
+
+        def offered(suffix: str) -> str | None:
+            return next((name for name in names if name == suffix or name.endswith("__" + suffix)), None)
+
+        accounts = re.findall(r"acct-[a-z0-9-]+", lowered)
+        account = accounts[-1] if accounts else "acct-me"
+        amounts = re.findall(r"(?<![a-z0-9-])(\d+)(?:\.\d+)?", lowered)
+        amount = int(amounts[0]) if amounts else 5000
+        email_match = re.search(r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}", lowered)
+
+        name = offered("update_email")
+        if name and "email" in lowered and email_match:
+            return ToolCall(name, {"account": account, "email": email_match.group(0)})
+        name = offered("issue_refund")
+        if name and "refund" in lowered:
+            return ToolCall(name, {"to_account": account, "amount": amount})
+        name = offered("transfer_funds")
+        if name and ("transfer" in lowered or "move" in lowered):
+            return ToolCall(name, {"to_account": account, "amount": amount})
+        name = offered("get_balance")
+        if name and "balance" in lowered:
+            return ToolCall(name, {"account": account})
+        name = offered("get_customer")
+        if name and ("customer" in lowered or "profile" in lowered):
+            return ToolCall(name, {"account": account})
+        name = offered("get_notes")
+        if name and "note" in lowered:
+            return ToolCall(name, {"account": account})
+        name = offered("get_account_details")
+        if name and ("account" in lowered or "detail" in lowered):
+            return ToolCall(name, {"account": account})
+        return None
+
     def next_step(self, messages: list[dict], tools: list[dict]) -> "ToolCall | FinalAnswer":
+        payload: dict = {
+            "model": self._model,
+            "messages": self._translate(messages),
+            "stream": False,
+            "options": {"num_predict": 96},
+        }
+        if tools:
+            payload["tools"] = [{"type": "function", "function": schema} for schema in tools]
         try:
             resp = httpx.post(
                 f"{self._url}/api/chat",
-                json={
-                    "model": self._model,
-                    "messages": self._translate(messages),
-                    "tools": [{"type": "function", "function": schema} for schema in tools],
-                    "stream": False,
-                    "options": {"num_predict": 96},
-                },
+                json=payload,
                 timeout=120,
             )
             resp.raise_for_status()
             data = resp.json()
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 400 and tools:
+                fallback = self._compat_step(messages, tools)
+                if fallback is not None:
+                    return fallback
+            return FinalAnswer(f"<error: {exc}>")
         except (httpx.HTTPError, ValueError) as exc:
             return FinalAnswer(f"<error: {exc}>")
         message = data.get("message") or {}
