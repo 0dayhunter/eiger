@@ -34,7 +34,7 @@ class OllamaProvider:
                 "model": self._model,
                 "messages": messages,
                 "stream": False,
-                "options": {"num_predict": 96},
+                "options": {"num_predict": 16, "temperature": 0},
             },
             timeout=120,
         )
@@ -215,7 +215,7 @@ class OllamaToolProvider:
             "model": self._model,
             "messages": self._translate(messages),
             "stream": False,
-            "options": {"num_predict": 96},
+            "options": {"num_predict": 16, "temperature": 0},
         }
         if tools:
             payload["tools"] = [{"type": "function", "function": schema} for schema in tools]
