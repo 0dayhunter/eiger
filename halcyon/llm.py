@@ -29,8 +29,13 @@ class OllamaProvider:
     def chat(self, messages: list[dict]) -> str:
         resp = httpx.post(
             f"{self._url}/api/chat",
-            json={"model": self._model, "messages": messages, "stream": False},
-            timeout=60,
+            json={
+                "model": self._model,
+                "messages": messages,
+                "stream": False,
+                "options": {"num_predict": 96},
+            },
+            timeout=120,
         )
         resp.raise_for_status()
         return resp.json()["message"]["content"]
@@ -93,12 +98,13 @@ def build_llm(
     model: str | None = None,
     api_key: str | None = None,
 ) -> LLM:
+    provider = (provider or settings.default_provider).lower()
+    if provider in ("local", "ollama"):
+        return OllamaProvider(settings.ollama_url, model or settings.ollama_model)
+
     from halcyon.provider_litellm import LiteLLMChat, to_litellm_model
 
-    provider = provider or settings.default_provider
     model_str = to_litellm_model(provider, model, settings.ollama_model)
-    if model_str.startswith("ollama"):
-        return LiteLLMChat(model_str, api_base=settings.ollama_url)
     if not api_key:
         raise ValueError(f"provider {provider!r} requires an api_key")
     return LiteLLMChat(model_str, api_key=api_key)
@@ -166,8 +172,9 @@ class OllamaToolProvider:
                     "messages": self._translate(messages),
                     "tools": [{"type": "function", "function": schema} for schema in tools],
                     "stream": False,
+                    "options": {"num_predict": 96},
                 },
-                timeout=60,
+                timeout=120,
             )
             resp.raise_for_status()
             data = resp.json()
@@ -320,12 +327,13 @@ def build_tool_llm(
     model: str | None = None,
     api_key: str | None = None,
 ) -> ToolLLM:
+    provider = (provider or settings.default_provider).lower()
+    if provider in ("local", "ollama"):
+        return OllamaToolProvider(settings.ollama_url, model or settings.ollama_model)
+
     from halcyon.provider_litellm import LiteLLMTool, to_litellm_model
 
-    provider = provider or settings.default_provider
     model_str = to_litellm_model(provider, model, settings.ollama_model)
-    if model_str.startswith("ollama"):
-        return LiteLLMTool(model_str, api_base=settings.ollama_url)
     if not api_key:
         raise ValueError(f"provider {provider!r} requires an api_key")
     return LiteLLMTool(model_str, api_key=api_key)

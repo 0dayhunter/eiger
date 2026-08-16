@@ -1,6 +1,6 @@
 from halcyon.config import load_settings
-from halcyon.llm import StubLLM, build_llm
-from halcyon.provider_litellm import LiteLLMChat, to_litellm_model
+from halcyon.llm import OllamaProvider, OllamaToolProvider, StubLLM, build_llm, build_tool_llm
+from halcyon.provider_litellm import to_litellm_model
 
 
 def test_stub_returns_fixed_reply_and_captures_messages():
@@ -13,8 +13,15 @@ def test_stub_returns_fixed_reply_and_captures_messages():
 def test_build_llm_defaults_to_local_ollama():
     s = load_settings({})
     llm = build_llm(s)
-    assert isinstance(llm, LiteLLMChat)
-    assert llm._model.startswith("ollama")   # ollama_chat/ (see to_litellm_model)
+    assert isinstance(llm, OllamaProvider)
+    assert llm._model == "llama3.1:8b"
+
+
+def test_build_tool_llm_defaults_to_direct_local_ollama():
+    s = load_settings({})
+    llm = build_tool_llm(s)
+    assert isinstance(llm, OllamaToolProvider)
+    assert llm._model == "llama3.1:8b"
 
 
 def test_build_llm_remote_requires_key():

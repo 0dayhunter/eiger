@@ -3,7 +3,6 @@ import os
 from typing import cast
 
 from halcyon import bank_fixtures, crm_fixtures, kb_fixtures
-from halcyon.chroma_kb import ChromaKB
 from halcyon.config import load_settings
 from halcyon.llm import build_llm, build_tool_llm
 from halcyon.mcp_config import load_mcp_servers
@@ -16,7 +15,18 @@ from halcyon.web import create_app
 _settings = load_settings(os.environ)
 init_schema(_settings.database_url)
 _store = PostgresStore(_settings.database_url)
-_kb_for = KBProvider(lambda sid: ChromaKB(collection=slug(sid)), kb_fixtures.SEED)
+_on_render = os.environ.get("RENDER", "").lower() in {"1", "true", "on", "yes"}
+if _on_render:
+    from halcyon.kb import InMemoryKB
+
+    logging.getLogger(__name__).warning(
+        "kb_factory: InMemoryKB (Render memory-constrained runtime)"
+    )
+    _kb_for = KBProvider(lambda _sid: InMemoryKB(), kb_fixtures.SEED)
+else:
+    from halcyon.chroma_kb import ChromaKB
+
+    _kb_for = KBProvider(lambda sid: ChromaKB(collection=slug(sid)), kb_fixtures.SEED)
 _bank_for = BankProvider(bank_fixtures.seed_for)
 _vault = TokenVault({SERVER_CORE: "core-token-dev", SERVER_CRM: "crm-token-dev"})
 
