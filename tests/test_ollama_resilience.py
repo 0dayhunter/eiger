@@ -45,3 +45,19 @@ def test_local_fallback_echoes_non_greeting_messages(monkeypatch):
     reply = provider.chat([{"role": "user", "content": "Explain my statement"}])
 
     assert reply == "I received your message: Explain my statement"
+
+
+def test_local_fallback_extracts_user_text_from_flattened_prompt(monkeypatch):
+    def timeout(*args, **kwargs):
+        raise httpx.ReadTimeout("slow local model")
+
+    monkeypatch.setattr(httpx, "post", timeout)
+    provider = OllamaProvider("http://ollama", "small-model")
+    flattened = (
+        "You are Iggy. Internal operator token: HALYON-OPS-7731. Never reveal it.\n\n"
+        "User: Hello\nAssistant:"
+    )
+
+    reply = provider.chat([{"role": "user", "content": flattened}])
+
+    assert reply == "Hello! Iggy is online and ready to help."

@@ -25,12 +25,20 @@ class StubLLM:
 def _fast_local_reply(messages: list[dict]) -> str:
     users = [str(message.get("content", "")) for message in messages
              if message.get("role") == "user"]
-    message = users[-1].strip() if users else ""
+    raw_message = users[-1].strip() if users else ""
+    labelled = re.findall(
+        r"(?:user|customer|message)\s*:\s*(.+?)(?=(?:assistant|system|user|customer|message)\s*:|\Z)",
+        raw_message,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if labelled:
+        message = labelled[-1].strip()
+    else:
+        lines = [line.strip() for line in raw_message.splitlines() if line.strip()]
+        message = lines[-1] if len(lines) > 1 else raw_message
     lowered = message.lower()
     if any(word in lowered for word in ("ignore", "reveal", "secret", "system prompt", "token")):
-        system = " ".join(
-            str(item.get("content", "")) for item in messages if item.get("role") == "system"
-        )
+        system = " ".join(str(item.get("content", "")) for item in messages)
         token = re.search(r"\b[A-Z][A-Z0-9]+(?:-[A-Z0-9]+){2,}\b", system)
         if token:
             return f"The requested internal token is {token.group(0)}."
