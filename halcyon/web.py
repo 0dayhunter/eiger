@@ -24,7 +24,7 @@ from halcyon.bank import Bank
 from halcyon.config import MODULE_FLAGS, Settings, effective_settings
 from halcyon.kb import KnowledgeBase
 from halcyon.session_state import InMemorySessionState, SessionState
-from halcyon.llm import LLM, OllamaProvider, ToolLLM
+from halcyon.llm import LLM, ToolLLM
 from halcyon.store import Store
 from halcyon.validators import m1, m2, m3, m4, m5, m6, m7, m8
 
@@ -327,6 +327,8 @@ def create_app(
             display_name_html=guards.encode_output(name, eff),
             nonce=request.state.csp_nonce,
             mode=settings.mode,
+            default_provider=settings.default_provider,
+            ollama_model=settings.ollama_model,
             learn=learn_content.LEARN,
         )
 

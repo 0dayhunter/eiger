@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import cast
 
 from halcyon import bank_fixtures, crm_fixtures, kb_fixtures
 from halcyon.chroma_kb import ChromaKB
@@ -37,12 +38,14 @@ _crm_url = _mcp_servers.get("mcp-crm")
 _in_process = os.environ.get("MCP_IN_PROCESS", "").lower() in {"1", "true", "on", "yes"}
 
 if not _in_process and _core_url and _crm_url:
+    _http_core_url = cast(str, _core_url)
+    _http_crm_url = cast(str, _crm_url)
     logging.getLogger(__name__).info(
         "mcp_host_factory: http_host over %s / %s (mcp.json / env override)", _core_url, _crm_url
     )
 
     def _mcp_host_factory(session_id: str, settings=_settings):
-        return http_host(_core_url, _crm_url, _vault, _store, settings, session_id)
+        return http_host(_http_core_url, _http_crm_url, _vault, _store, settings, session_id)
 else:
     # In-memory fallback: run the same servers against this process's own fixtures.
     logging.getLogger(__name__).warning(

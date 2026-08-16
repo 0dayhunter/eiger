@@ -2,18 +2,31 @@
 set -eu
 
 : "${OLLAMA_URL:=http://127.0.0.1:11434}"
-: "${OLLAMA_MODEL:=llama3.1:8b}"
+: "${OLLAMA_MODEL:=smollm2:135m-instruct-q4_0}"
 : "${OLLAMA_HOST:=${OLLAMA_URL#*://}}"
+: "${OLLAMA_CONTEXT_LENGTH:=2048}"
+: "${OLLAMA_NUM_PARALLEL:=1}"
+: "${OLLAMA_MAX_LOADED_MODELS:=1}"
+: "${OLLAMA_MAX_QUEUE:=8}"
 OLLAMA_HOST="${OLLAMA_HOST%%/}"
 
-export OLLAMA_HOST
+export OLLAMA_HOST OLLAMA_CONTEXT_LENGTH OLLAMA_NUM_PARALLEL
+export OLLAMA_MAX_LOADED_MODELS OLLAMA_MAX_QUEUE
 
-if command -v ollama >/dev/null 2>&1; then
+case "$OLLAMA_HOST" in
+  localhost:*|127.0.0.1:*) LOCAL_OLLAMA=1 ;;
+  *) LOCAL_OLLAMA=0 ;;
+esac
+
+if [ "$LOCAL_OLLAMA" -eq 1 ] && command -v ollama >/dev/null 2>&1; then
   echo "[entrypoint] launching ollama on ${OLLAMA_HOST}"
   ( ollama serve >/tmp/ollama.log 2>&1 ) &
   OLLAMA_PID="$!"
-else
+elif [ "$LOCAL_OLLAMA" -eq 1 ]; then
   echo "[entrypoint] ollama binary missing"
+  exit 1
+else
+  echo "[entrypoint] using external ollama at ${OLLAMA_HOST}"
   OLLAMA_PID=""
 fi
 
@@ -33,9 +46,14 @@ if [ -n "$OLLAMA_PID" ]; then
     echo "[entrypoint] ollama ready"
   fi
 
-  (ollama pull "${OLLAMA_MODEL}" >/tmp/ollama-pull.log 2>&1 || true) &
-  trap 'trap - INT TERM; kill "$OLLAMA_PID" 2>/dev/null || true' INT TERM
-  trap 'trap - EXIT; kill "$OLLAMA_PID" 2>/dev/null || true' EXIT
+  if ! ollama show "${OLLAMA_MODEL}" >/dev/null 2>&1; then
+    echo "[entrypoint] pulling ${OLLAMA_MODEL}"
+    if ! ollama pull "${OLLAMA_MODEL}" >/tmp/ollama-pull.log 2>&1; then
+      cat /tmp/ollama-pull.log
+      exit 1
+    fi
+  fi
+  echo "[entrypoint] model ${OLLAMA_MODEL} ready"
 fi
 
-exec uv run uvicorn halcyon.main:app --host 0.0.0.0 --port 8000
+exec /app/.venv/bin/uvicorn halcyon.main:app --host 0.0.0.0 --port "${PORT:-8000}"

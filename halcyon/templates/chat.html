@@ -167,7 +167,7 @@
   <nav>
     <span class="iggy-chip"><span class="dot"></span>Iggy · online</span>
     <a id="board-link" href="/board" target="_blank" rel="noopener">Attack board</a>
-    <button id="model-btn" type="button">⚙ <span id="model-label">local · llama3.1:8b</span></button>
+    <button id="model-btn" type="button">⚙ <span id="model-label">{{ default_provider }} · {{ ollama_model }}</span></button>
   </nav>
 </header>
 
@@ -377,7 +377,7 @@
 
   // ---- model-config modal ----
   const DEFAULT_MODEL = {
-    local: "llama3.1:8b", anthropic: "claude-haiku-4-5",
+    local: {{ ollama_model | tojson }}, anthropic: "claude-haiku-4-5",
     openai: "gpt-4o", gemini: "gemini-2.5-flash", xai: "grok-4.3",
   };
   const modal = document.getElementById("model-modal");
@@ -395,7 +395,7 @@
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = await r.json();
+      const data = await readJSON(r);
       modelLabel.textContent = (data.provider || provSel.value) + " · " + (data.model || modelIn.value);
     } catch (err) {
       modelLabel.textContent = "save failed";
@@ -420,9 +420,23 @@
     }
     outEl.textContent = text;
   }
-  const postJSON = (url, body) => fetch(url, {
+  async function readJSON(response) {
+    const text = await response.text();
+    let data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (_err) {
+      throw new Error("HTTP " + response.status + " returned a non-JSON response");
+    }
+    if (!response.ok) {
+      const detail = data.detail ?? data.error;
+      throw new Error(typeof detail === "string" ? detail : ("HTTP " + response.status));
+    }
+    return data;
+  }
+  const postJSON = async (url, body) => readJSON(await fetch(url, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-  });
+  }));
 
   // ---- L0 chat ----
   const log = document.getElementById("log");
@@ -440,8 +454,7 @@
     msgEl.value = ""; sendBtn.disabled = true;
     const pending = line(log, "sys", "Iggy", "typing…");
     try {
-      const r = await postJSON("/api/chat", { session_id: sid, message: msg });
-      const data = await r.json();
+      const data = await postJSON("/api/chat", { session_id: sid, message: msg });
       pending.remove();
       line(log, "iggy", "Iggy", data.reply ?? ("error: " + JSON.stringify(data)));
     } catch (err) {
@@ -472,8 +485,7 @@
     if (!q.value.trim()) return;
     ragout.textContent = "…";
     try {
-      const r = await postJSON("/api/ask", { session_id: sid, query: q.value });
-      const data = await r.json();
+      const data = await postJSON("/api/ask", { session_id: sid, query: q.value });
       ragout.textContent = data.reply ?? ("error: " + JSON.stringify(data));
     } catch (err) { ragout.textContent = "request failed — " + err; }
   };
@@ -481,8 +493,8 @@
   // ---- L2 M4 + M5 ----
   const m4status = document.getElementById("m4status");
   async function submitM4(findingType, value) {
-    const r = await postJSON("/submit/m4", { session_id: sid, finding_type: findingType, value: value });
-    return (await r.json()).correct;
+    const data = await postJSON("/submit/m4", { session_id: sid, finding_type: findingType, value: value });
+    return data.correct;
   }
   document.getElementById("m4hashbtn").onclick = async () => {
     try {
@@ -510,8 +522,8 @@
     if (!m.value.trim()) return;
     m5out.textContent = "…";
     try {
-      const r = await postJSON("/api/agent", { session_id: sid, message: m.value });
-      renderAgent(m5out, await r.json());
+      const data = await postJSON("/api/agent", { session_id: sid, message: m.value });
+      renderAgent(m5out, data);
     } catch (err) { m5out.textContent = "request failed — " + err; }
   };
 
@@ -522,8 +534,8 @@
     if (!m.value.trim()) return;
     mcpout.textContent = "…";
     try {
-      const r = await postJSON("/api/mcp-agent", { session_id: sid, message: m.value });
-      renderAgent(mcpout, await r.json());
+      const data = await postJSON("/api/mcp-agent", { session_id: sid, message: m.value });
+      renderAgent(mcpout, data);
     } catch (err) { mcpout.textContent = "request failed — " + err; }
   };
 
@@ -538,8 +550,7 @@
       amount: parseInt(document.getElementById("damt").value || "0", 10),
     };
     try {
-      const r = await postJSON("/api/dispute", body);
-      const data = await r.json();
+      const data = await postJSON("/api/dispute", body);
       if (data.decision === undefined) { dout.textContent = "error: " + JSON.stringify(data); return; }
       let text = "decision: " + data.decision;
       for (const m of data.transcript ?? []) text += "\n[" + m.from + "] " + m.content;
@@ -554,8 +565,7 @@
     if (!m.value.trim()) return;
     gout.textContent = "…";
     try {
-      const r = await postJSON("/api/guarded-chat", { session_id: sid, message: m.value });
-      const data = await r.json();
+      const data = await postJSON("/api/guarded-chat", { session_id: sid, message: m.value });
       gout.textContent = data.reply ?? ("error: " + JSON.stringify(data));
     } catch (err) { gout.textContent = "request failed — " + err; }
   };
@@ -583,11 +593,11 @@
   // ---- bootstrap ----
   (async () => {
     try {
-      const lv = await (await fetch("/api/level?session=" + encodeURIComponent(sid))).json();
+      const lv = await readJSON(await fetch("/api/level?session=" + encodeURIComponent(sid)));
       if (lv && typeof lv === "object" && !lv.error) levels = lv;
     } catch (e) { /* leave defaults */ }
     try {
-      const c = await (await fetch("/api/config?session=" + encodeURIComponent(sid))).json();
+      const c = await readJSON(await fetch("/api/config?session=" + encodeURIComponent(sid)));
       if (c && c.provider) {
         modelLabel.textContent = c.provider + " · " + (c.model || DEFAULT_MODEL[c.provider] || "");
       }

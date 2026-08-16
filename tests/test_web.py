@@ -111,6 +111,17 @@ def test_reach_page_is_dark_eiger():
     assert 'href="/chat"' in text             # entry link preserved
 
 
+def test_chat_page_uses_configured_model_and_safe_json_parser():
+    model = "smollm2:135m-instruct-q4_0"
+    client, _ = make_client(
+        {"HALCYON_MODE": "vulnerable", "OLLAMA_MODEL": model}, "hi"
+    )
+    text = client.get("/chat").text
+    assert f"local · {model}" in text
+    assert "async function readJSON(response)" in text
+    assert "await response.text()" in text
+
+
 def test_chat_page_has_model_modal():
     # Replaces the old local/remote selector assertion: the config UI is now a
     # five-provider modal, not a two-option inline select.
